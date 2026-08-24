@@ -4,7 +4,13 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的版本标签，例如 v0.1.0"
+        required: true
+        default: v0.1.0
+        type: string
 
 permissions:
   contents: read
@@ -16,9 +22,11 @@ jobs:
       - run: echo "Release workflow loaded; publication runs only for refs/tags/v*"
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     environment: npm
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     permissions:
       contents: write
       id-token: write
@@ -27,6 +35,7 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: pnpm/action-setup@v4
         with:
           version: 11
@@ -35,10 +44,10 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
           cache: pnpm
-      - run: git fetch origin main && git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - run: git fetch origin main && git merge-base --is-ancestor HEAD origin/main
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
-      - run: node scripts/verify-release.mjs "$GITHUB_REF_NAME"
+      - run: node scripts/verify-release.mjs "$RELEASE_TAG"
       - run: pnpm --filter web-sdk-pp-ocrv6 build
       - run: node scripts/verify-package-assets.mjs
       - name: Publish package with npm Trusted Publisher
@@ -48,9 +57,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
-          gh release create "$GITHUB_REF_NAME"
-          --target "$GITHUB_SHA"
-          --title "$GITHUB_REF_NAME"
+          gh release create "$RELEASE_TAG"
+          --target "$RELEASE_TAG"
+          --title "$RELEASE_TAG"
           --notes-file CHANGELOG.md
           models/pp-ocrv6/1.0.0/*.onnx
           models/pp-ocrv6/1.0.0/manifest.json
