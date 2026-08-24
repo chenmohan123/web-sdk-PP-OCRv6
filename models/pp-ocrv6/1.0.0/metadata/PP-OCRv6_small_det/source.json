@@ -1,0 +1,29 @@
+{
+  "id": "PP-OCRv6_small_det",
+  "role": "det",
+  "preset": "small",
+  "repository": "PaddlePaddle/PP-OCRv6_small_det_onnx",
+  "revision": "28fe5895c24fd108c19eb3e8479f4ab385fbfc62",
+  "parameterCount": 2480000,
+  "modelCard": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx",
+  "files": [
+    {
+      "filename": "inference.onnx",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.onnx",
+      "destination": "models\\pp-ocrv6\\1.0.0\\PP-OCRv6_small_det.onnx",
+      "status": "downloaded"
+    },
+    {
+      "filename": "inference.json",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.json",
+      "destination": "models\\pp-ocrv6\\1.0.0\\metadata\\PP-OCRv6_small_det\\inference.json",
+      "status": "downloaded"
+    },
+    {
+      "filename": "inference.yml",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_det_onnx/resolve/28fe5895c24fd108c19eb3e8479f4ab385fbfc62/inference.yml",
+      "destination": "models\\pp-ocrv6\\1.0.0\\metadata\\PP-OCRv6_small_det\\inference.yml",
+      "status": "downloaded"
+    }
+  ]
+}

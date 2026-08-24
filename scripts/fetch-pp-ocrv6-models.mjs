@@ -1,0 +1,100 @@
+#!/usr/bin/env node
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, "..");
+const modelRoot = path.join(repoRoot, "models", "pp-ocrv6", "1.0.0");
+const sourcePath = path.join(modelRoot, "model-source.json");
+const requiredFiles = ["inference.onnx", "inference.json", "inference.yml"];
+
+function parseArgs(argv) {
+  const revisions = new Map();
+  let force = false;
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (argument === "--force") {
+      force = true;
+      continue;
+    }
+    if (argument !== "--revision") throw new Error("Usage: node scripts/fetch-pp-ocrv6-models.mjs --revision <asset-id=commit-sha> [... --revision <asset-id=commit-sha>] [--force]");
+    const value = argv[++index] ?? "";
+    const separator = value.indexOf("=");
+    if (separator <= 0) throw new Error(`Invalid revision '${value}'. Use <asset-id=commit-sha>.`);
+    const id = value.slice(0, separator);
+    const revision = value.slice(separator + 1);
+    if (!/^[a-f0-9]{40}$/i.test(revision)) throw new Error(`Revision for ${id} must be a 40-character commit SHA.`);
+    revisions.set(id, revision);
+  }
+  if (revisions.size === 0) throw new Error("A fixed --revision asset-id=commit-sha is required; floating branches are refused.");
+  return { revisions, force };
+}
+
+function parseYamlScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1).replaceAll("''", "'");
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try { return JSON.parse(trimmed); } catch { return trimmed.slice(1, -1); }
+  }
+  return trimmed;
+}
+
+function extractCharacterDictionary(yaml) {
+  const lines = yaml.split(/\r?\n/);
+  const start = lines.findIndex((line) => /^  character_dict:\s*$/.test(line));
+  if (start < 0) return [];
+  const characters = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^  [A-Za-z_][\w-]*:/.test(line)) break;
+    const match = /^  - (.*)$/.exec(line);
+    if (match) characters.push(parseYamlScalar(match[1]));
+  }
+  return characters.filter((character) => character.length > 0);
+}
+
+async function exists(filePath) {
+  try { await readFile(filePath); return true; } catch (error) { if (error?.code === "ENOENT") return false; throw error; }
+}
+
+async function download(url, destination, force) {
+  if (!force && await exists(destination)) return "existing";
+  const response = await fetch(url, { redirect: "follow" });
+  if (!response.ok) throw new Error(`Download failed (${response.status}) ${url}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  await writeFile(destination, bytes);
+  return "downloaded";
+}
+
+const { revisions, force } = parseArgs(process.argv.slice(2));
+const source = JSON.parse(await readFile(sourcePath, "utf8"));
+for (const asset of source.assets) {
+  const revision = revisions.get(asset.id);
+  if (!revision) throw new Error(`Missing fixed --revision for ${asset.id}.`);
+  if (revision.toLowerCase() !== asset.revision.toLowerCase()) throw new Error(`Revision mismatch for ${asset.id}: source records ${asset.revision}, received ${revision}.`);
+
+  const metadataDir = path.join(modelRoot, "metadata", asset.id);
+  await mkdir(metadataDir, { recursive: true });
+  const baseUrl = `https://huggingface.co/${asset.repository}/resolve/${revision}`;
+  const records = [];
+  for (const filename of requiredFiles) {
+    const destination = filename === "inference.onnx"
+      ? path.join(modelRoot, `${asset.id}.onnx`)
+      : path.join(metadataDir, filename);
+    const status = await download(`${baseUrl}/${filename}?download=true`, destination, force);
+    records.push({ filename, url: `${baseUrl}/${filename}`, destination: path.relative(repoRoot, destination), status });
+  }
+
+  const yml = await readFile(path.join(metadataDir, "inference.yml"), "utf8");
+  if (asset.role === "rec") {
+    const characters = extractCharacterDictionary(yml);
+    if (characters.length === 0) throw new Error(`No character_dict found in ${asset.id} inference.yml.`);
+    const dictionaryPath = path.join(modelRoot, "dictionaries", `${asset.id}.txt`);
+    await mkdir(path.dirname(dictionaryPath), { recursive: true });
+    if (force || !(await exists(dictionaryPath))) await writeFile(dictionaryPath, `${characters.join("\n")}\n`, "utf8");
+    records.push({ filename: "dictionary", destination: path.relative(repoRoot, dictionaryPath), characters: characters.length });
+  }
+  await writeFile(path.join(metadataDir, "source.json"), `${JSON.stringify({ ...asset, revision, files: records }, null, 2)}\n`, "utf8");
+  console.log(`${asset.id}: ${records.map((record) => record.status ?? "generated").join(", ")}`);
+}

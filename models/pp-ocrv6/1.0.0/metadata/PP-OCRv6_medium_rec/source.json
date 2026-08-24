@@ -1,0 +1,34 @@
+{
+  "id": "PP-OCRv6_medium_rec",
+  "role": "rec",
+  "preset": "medium",
+  "repository": "PaddlePaddle/PP-OCRv6_medium_rec_onnx",
+  "revision": "50c7eacafc52fa7bcf4194e8cd08e46f8558504b",
+  "parameterCount": 19000000,
+  "modelCard": "https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_rec_onnx",
+  "files": [
+    {
+      "filename": "inference.onnx",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_rec_onnx/resolve/50c7eacafc52fa7bcf4194e8cd08e46f8558504b/inference.onnx",
+      "destination": "models\\pp-ocrv6\\1.0.0\\PP-OCRv6_medium_rec.onnx",
+      "status": "downloaded"
+    },
+    {
+      "filename": "inference.json",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_rec_onnx/resolve/50c7eacafc52fa7bcf4194e8cd08e46f8558504b/inference.json",
+      "destination": "models\\pp-ocrv6\\1.0.0\\metadata\\PP-OCRv6_medium_rec\\inference.json",
+      "status": "downloaded"
+    },
+    {
+      "filename": "inference.yml",
+      "url": "https://huggingface.co/PaddlePaddle/PP-OCRv6_medium_rec_onnx/resolve/50c7eacafc52fa7bcf4194e8cd08e46f8558504b/inference.yml",
+      "destination": "models\\pp-ocrv6\\1.0.0\\metadata\\PP-OCRv6_medium_rec\\inference.yml",
+      "status": "downloaded"
+    },
+    {
+      "filename": "dictionary",
+      "destination": "models\\pp-ocrv6\\1.0.0\\dictionaries\\PP-OCRv6_medium_rec.txt",
+      "characters": 18707
+    }
+  ]
+}

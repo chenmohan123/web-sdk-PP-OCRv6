@@ -1,0 +1,79 @@
+{
+  "manifest": "models\\pp-ocrv6\\1.0.0\\manifest.json",
+  "verifiedAt": "2026-08-24T08:02:57.482Z",
+  "assets": [
+    {
+      "id": "PP-OCRv6_medium_det",
+      "bytes": 62032837,
+      "sha256": "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1",
+      "inputNames": [
+        "x"
+      ],
+      "outputNames": [
+        "fetch_name_0"
+      ],
+      "errors": []
+    },
+    {
+      "id": "PP-OCRv6_small_det",
+      "bytes": 9880512,
+      "sha256": "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e",
+      "inputNames": [
+        "x"
+      ],
+      "outputNames": [
+        "fetch_name_0"
+      ],
+      "errors": []
+    },
+    {
+      "id": "PP-OCRv6_tiny_det",
+      "bytes": 1780590,
+      "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8",
+      "inputNames": [
+        "x"
+      ],
+      "outputNames": [
+        "fetch_name_0"
+      ],
+      "errors": []
+    },
+    {
+      "id": "PP-OCRv6_medium_rec",
+      "bytes": 76554979,
+      "sha256": "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba",
+      "inputNames": [
+        "x"
+      ],
+      "outputNames": [
+        "fetch_name_0"
+      ],
+      "errors": []
+    },
+    {
+      "id": "PP-OCRv6_small_rec",
+      "bytes": 21159378,
+      "sha256": "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634",
+      "inputNames": [
+        "x"
+      ],
+      "outputNames": [
+        "fetch_name_0"
+      ],
+      "errors": []
+    },
+    {
+      "id": "PP-OCRv6_tiny_rec",
+      "bytes": 4462639,
+      "sha256": "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6",
+      "inputNames": [
+        "x"
+      ],
+      "outputNames": [
+        "fetch_name_0"
+      ],
+      "errors": []
+    }
+  ],
+  "ok": true
+}

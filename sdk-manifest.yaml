@@ -21,19 +21,19 @@ runtime:
   runtimeVersion: onnxruntime-web@1.27.0
 model:
   id: pp-ocrv6
-  version: 0.1.0-unpinned
+  version: 1.0.0
   format: onnx
   parameterCount: null
   precision: [fp32]
-  source: Official PaddlePaddle PP-OCRv6 sources; asset metadata is intentionally unverified until the model pinning task.
+  source: Official PaddlePaddle PP-OCRv6 ONNX assets pinned to Hugging Face commit revisions; GitHub Release URLs are the default distribution addresses and Hugging Face URLs are the provenance fallback.
   license: Apache-2.0
   assets:
-    - { id: PP-OCRv6_medium_det, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_medium_det.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
-    - { id: PP-OCRv6_small_det, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_small_det.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
-    - { id: PP-OCRv6_tiny_det, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_tiny_det.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
-    - { id: PP-OCRv6_medium_rec, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_medium_rec.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
-    - { id: PP-OCRv6_small_rec, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_small_rec.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
-    - { id: PP-OCRv6_tiny_rec, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_tiny_rec.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+    - { id: PP-OCRv6_medium_det, bytes: 62032837, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_medium_det.onnx, sha256: "eb13b44b25bb36f89528b68720af8a61d9cf381176107f465db1757b65d086e1" }
+    - { id: PP-OCRv6_small_det, bytes: 9880512, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_small_det.onnx, sha256: "d73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e" }
+    - { id: PP-OCRv6_tiny_det, bytes: 1780590, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_tiny_det.onnx, sha256: "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8" }
+    - { id: PP-OCRv6_medium_rec, bytes: 76554979, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_medium_rec.onnx, sha256: "9c09abf0957f7968c7586464b7397b84ad2387a0497a351af40e9acc71b673ba" }
+    - { id: PP-OCRv6_small_rec, bytes: 21159378, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_small_rec.onnx, sha256: "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634" }
+    - { id: PP-OCRv6_tiny_rec, bytes: 4462639, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_tiny_rec.onnx, sha256: "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6" }
 performance:
   timings: [modelDownloadMs, modelCacheReadMs, integrityMs, sessionMs, preprocessMs, inferenceMs, postprocessMs, totalMs]
   coldStartDefined: true
