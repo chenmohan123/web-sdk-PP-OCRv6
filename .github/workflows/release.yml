@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Release workflow loaded; publication runs only for refs/tags/v*"
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      - run: git fetch origin main && git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - run: node scripts/verify-release.mjs "$GITHUB_REF_NAME"
+      - run: pnpm --filter web-sdk-pp-ocrv6 build
+      - run: node scripts/verify-package-assets.mjs
+      - name: Publish package with npm Trusted Publisher
+        working-directory: packages/sdk
+        run: npm publish --access public --provenance
+      - name: Attach immutable model assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          --target "$GITHUB_SHA"
+          --title "$GITHUB_REF_NAME"
+          --notes-file CHANGELOG.md
+          models/pp-ocrv6/1.0.0/*.onnx
+          models/pp-ocrv6/1.0.0/manifest.json
