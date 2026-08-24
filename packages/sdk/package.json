@@ -1,0 +1,16 @@
+{
+  "name": "@pp-ocrv6/sdk",
+  "version": "0.1.0",
+  "description": "PP-OCRv6 browser OCR runtime",
+  "license": "Apache-2.0",
+  "type": "module",
+  "private": true,
+  "files": ["dist"],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" }, "./inference.worker.js": "./dist/inference.worker.js" },
+  "dependencies": { "onnxruntime-web": "1.27.0" },
+  "scripts": { "build": "tsup --config tsup.config.ts", "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "devDependencies": { "@types/node": "24.0.0", "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "3.2.7" }
+}

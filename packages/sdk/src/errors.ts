@@ -1,0 +1,2 @@
+export type ErrorCode = "INVALID_MANIFEST" | "CAPABILITY_UNSUPPORTED" | "INVALID_INPUT" | "MODEL_DOWNLOAD_FAILED" | "MODEL_INTEGRITY_FAILED" | "OUT_OF_MEMORY" | "SESSION_CREATE_FAILED" | "INFERENCE_FAILED" | "ABORTED" | "DISPOSED";
+export class PPOCRv6Error extends Error { readonly code: ErrorCode; constructor(code: ErrorCode, message?: string) { super(message ?? code); this.name = "PPOCRv6Error"; this.code = code; } }

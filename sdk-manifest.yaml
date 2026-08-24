@@ -1,0 +1,54 @@
+schemaVersion: "1.1.0"
+id: pp-ocrv6
+name: PP-OCRv6 Web SDK
+summary: Browser-first PP-OCRv6 OCR SDK with local detection and recognition through ONNX Runtime Web.
+package:
+  name: web-sdk-pp-ocrv6
+  version: 0.1.0
+repository: https://github.com/chenmohan123/web-sdk-PP-OCRv6
+demo:
+  url: https://chenmohan123.github.io/web-sdk-PP-OCRv6/
+  defaultLanguage: zh-CN
+  framework: vanilla
+  localProcessing: true
+docs:
+  zhCN: docs/zh-CN/quick-start.md
+  en: docs/en/quick-start.md
+runtime:
+  backends: [wasm, webgpu]
+  executionModes: [worker, main]
+  actualBackendReported: true
+  runtimeVersion: onnxruntime-web@1.27.0
+model:
+  id: pp-ocrv6
+  version: 0.1.0-unpinned
+  format: onnx
+  parameterCount: null
+  precision: [fp32]
+  source: Official PaddlePaddle PP-OCRv6 sources; asset metadata is intentionally unverified until the model pinning task.
+  license: Apache-2.0
+  assets:
+    - { id: PP-OCRv6_medium_det, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_medium_det.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+    - { id: PP-OCRv6_small_det, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_small_det.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+    - { id: PP-OCRv6_tiny_det, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_tiny_det.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+    - { id: PP-OCRv6_medium_rec, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_medium_rec.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+    - { id: PP-OCRv6_small_rec, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_small_rec.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+    - { id: PP-OCRv6_tiny_rec, bytes: 1, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0-unpinned/PP-OCRv6_tiny_rec.onnx, sha256: "0000000000000000000000000000000000000000000000000000000000000000" }
+performance:
+  timings: [modelDownloadMs, modelCacheReadMs, integrityMs, sessionMs, preprocessMs, inferenceMs, postprocessMs, totalMs]
+  coldStartDefined: true
+  warmRunDefined: true
+cache:
+  storage: [indexeddb, memory]
+  versionedKeys: true
+  clearCurrent: true
+  clearAll: true
+  estimate: true
+examples:
+  vanilla: { status: available, path: examples/vanilla }
+  react: { status: available, path: examples/react }
+  vite: { status: available, path: examples/vanilla }
+  cdn: { status: planned, path: examples/vanilla }
+  wechatWebView: { status: planned, path: examples/vanilla }
+verification:
+  environments: []
