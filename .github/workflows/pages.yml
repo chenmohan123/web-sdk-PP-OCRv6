@@ -22,6 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web-sdk-pp-ocrv6 build
       - run: pnpm --filter @ppocrv6/demo build -- --base=/web-sdk-PP-OCRv6/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

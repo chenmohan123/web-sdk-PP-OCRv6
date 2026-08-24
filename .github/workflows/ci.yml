@@ -28,7 +28,7 @@ jobs:
       - run: pnpm --filter @ppocrv6/demo typecheck
       - run: pnpm --filter @ppocrv6/demo build
       - run: node scripts/verify-package-assets.mjs
-      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm --filter @ppocrv6/demo exec playwright install --with-deps chromium
       - run: pnpm --filter @ppocrv6/demo test
       - if: failure()
         uses: actions/upload-artifact@v4
