@@ -9,7 +9,7 @@ interface WorkerLike extends EventTarget {
 
 export interface WorkerBridge {
   load(model: ArrayBufferLike, backend?: Exclude<Backend, "auto">): Promise<unknown>;
-  run(input: ArrayBuffer | ArrayBufferView, signal?: AbortSignal): Promise<unknown>;
+  run(input: ArrayBuffer | ArrayBufferView | { readonly buffer: ArrayBuffer; readonly dims: readonly number[] }, signal?: AbortSignal): Promise<unknown>;
   dispose(): Promise<void>;
 }
 
@@ -40,7 +40,11 @@ export function createWorkerBridge(worker: WorkerLike): WorkerBridge {
   const request = (message: WorkerRequest, transfer: Transferable[], signal?: AbortSignal): Promise<unknown> => {
     if (disposed) return Promise.reject(new PPOCRv6Error("DISPOSED", "Worker bridge is disposed"));
     return new Promise((resolve, reject) => {
-      const abort = () => { pending.delete(message.requestId); reject(new PPOCRv6Error("ABORTED", "Worker request aborted")); };
+      const abort = () => {
+        pending.delete(message.requestId);
+        worker.postMessage({ type: "cancel", requestId: message.requestId } satisfies WorkerRequest);
+        reject(new PPOCRv6Error("ABORTED", "Worker request aborted"));
+      };
       if (signal?.aborted) return abort();
       signal?.addEventListener("abort", abort, { once: true });
       pending.set(message.requestId, { resolve(value) { signal?.removeEventListener("abort", abort); resolve(value); }, reject(error) { signal?.removeEventListener("abort", abort); reject(error); } });
@@ -53,8 +57,10 @@ export function createWorkerBridge(worker: WorkerLike): WorkerBridge {
       return request({ type: "load", requestId: id(), model: buffer, backend }, [buffer]);
     },
     run(input, signal) {
+      const requestId = id();
+      if (typeof input === "object" && "dims" in input) return request({ type: "run", requestId, input: input.buffer, dims: input.dims }, transferableBuffers(input.buffer), signal);
       const buffer = input instanceof ArrayBuffer ? input : new Uint8Array(input.buffer, input.byteOffset, input.byteLength).slice().buffer;
-      return request({ type: "run", requestId: id(), input: buffer }, transferableBuffers(buffer), signal);
+      return request({ type: "run", requestId, input: buffer, dims: [1, Math.floor(buffer.byteLength / 4)] }, transferableBuffers(buffer), signal);
     },
     async dispose() {
       if (disposed) return;

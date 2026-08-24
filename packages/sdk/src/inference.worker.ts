@@ -5,6 +5,8 @@ import type { WorkerRequest, WorkerResponse } from "./runtime/protocol";
 
 const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
 let session: OrtSessionHandle | undefined;
+let queue = Promise.resolve();
+const cancelled = new Set<string>();
 
 const send = (message: WorkerResponse, transfer: Transferable[] = []) => scope.postMessage(message, transfer);
 const errorMessage = (requestId: string, error: unknown): WorkerResponse => {
@@ -14,9 +16,10 @@ const errorMessage = (requestId: string, error: unknown): WorkerResponse => {
     : { type: "error", requestId, code: normalized.code, message: normalized.message, details: normalized.details };
 };
 
-scope.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => {
+const handle = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
   try {
+    if (request.type === "cancel") { cancelled.add(request.requestId); return; }
     if (request.type === "load") {
       await session?.dispose();
       session = await createOrtSession({ ort: ort as never, backend: request.backend, model: request.model, onProgress: (progress) => send(progress.progress === undefined
@@ -27,7 +30,8 @@ scope.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => 
     }
     if (request.type === "run") {
       if (!session) throw new PPOCRv6Error("SESSION_CREATE_FAILED", "Worker session is not loaded");
-      const output = await session.run({ x: new ort.Tensor("float32", new Float32Array(request.input), [1, request.input.byteLength]) });
+      const output = await session.run({ x: new ort.Tensor("float32", new Float32Array(request.input), request.dims) });
+      if (cancelled.delete(request.requestId)) return;
       const buffers = Object.values(output).flatMap((value) => value instanceof ort.Tensor ? [value.data.buffer as ArrayBuffer] : []);
       send({ type: "result", requestId: request.requestId, result: output }, buffers);
       return;
@@ -38,4 +42,8 @@ scope.addEventListener("message", async (event: MessageEvent<WorkerRequest>) => 
   } catch (error) {
     send(errorMessage(request.requestId, error));
   }
+};
+scope.addEventListener("message", (event: MessageEvent<WorkerRequest>) => {
+  if (event.data.type === "cancel") { cancelled.add(event.data.requestId); return; }
+  queue = queue.then(() => handle(event));
 });

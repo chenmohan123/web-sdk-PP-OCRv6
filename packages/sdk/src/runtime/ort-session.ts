@@ -56,6 +56,7 @@ export async function createOrtSession(options: OrtSessionOptions): Promise<OrtS
     backend: options.backend,
     sessionMs,
     async run(feeds, signal) {
+      if (disposed) throw new PPOCRv6Error("DISPOSED", "ORT session is disposed");
       if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Inference aborted");
       let abortReject: ((reason: PPOCRv6Error) => void) | undefined;
       const onAbort = () => { abortReject?.(new PPOCRv6Error("ABORTED", "Inference aborted")); };

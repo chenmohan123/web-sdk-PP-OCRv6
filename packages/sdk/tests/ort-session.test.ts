@@ -45,4 +45,16 @@ describe("ORT session factory", () => {
     await expect(running).rejects.toMatchObject({ code: "ABORTED" });
     release();
   });
+
+  it("returns DISPOSED when run is called after dispose", async () => {
+    const session = fakeSession();
+    const handle = await createOrtSession({
+      ort: { InferenceSession: { create: vi.fn().mockResolvedValue(session) }, env: { wasm: {} } } as never,
+      backend: "wasm",
+      model: new ArrayBuffer(0),
+    });
+    await handle.dispose();
+    await expect(handle.run({})).rejects.toMatchObject({ code: "DISPOSED" });
+    expect(session.run).not.toHaveBeenCalled();
+  });
 });

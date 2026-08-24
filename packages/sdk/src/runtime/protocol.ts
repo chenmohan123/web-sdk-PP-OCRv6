@@ -3,7 +3,8 @@ import type { ErrorCode, ErrorDetails } from "../errors";
 
 export type WorkerRequest =
   | { readonly type: "load"; readonly requestId: string; readonly model: ArrayBuffer; readonly backend: Exclude<Backend, "auto"> }
-  | { readonly type: "run"; readonly requestId: string; readonly input: ArrayBuffer }
+  | { readonly type: "run"; readonly requestId: string; readonly input: ArrayBuffer; readonly dims: readonly number[] }
+  | { readonly type: "cancel"; readonly requestId: string }
   | { readonly type: "dispose"; readonly requestId: string };
 
 export type WorkerResponse =
