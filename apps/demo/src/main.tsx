@@ -1,7 +1,7 @@
-/** Minimal React entry point reserved for the full Demo implementation task. */
-export function mountDemo(root: HTMLElement): void {
-  root.textContent = "PP-OCRv6 Demo scaffold";
-}
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./App";
+import "./styles.css";
 
 const root = document.getElementById("root");
-if (root) mountDemo(root);
+if (root) createRoot(root).render(<React.StrictMode><App /></React.StrictMode>);
