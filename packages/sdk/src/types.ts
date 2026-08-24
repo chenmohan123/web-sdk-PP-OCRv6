@@ -15,4 +15,11 @@ export interface RecognitionResult { readonly recognitions: readonly Recognition
 export interface OCRLine extends Detection, Recognition {}
 export interface OCRResult { readonly lines: readonly OCRLine[]; readonly timing: Timing; }
 export interface Timing { readonly totalMs: number; readonly requestedBackend: Backend; readonly actualBackend?: Exclude<Backend, "auto">; readonly execution: ExecutionMode; }
-export interface Capabilities { readonly wasm: boolean; readonly webgpu: boolean; readonly worker: boolean; }
+export interface Capabilities {
+  readonly wasm: boolean;
+  readonly wasmSimd: boolean;
+  readonly wasmThreads: boolean;
+  readonly webgpu: boolean;
+  readonly worker: boolean;
+  readonly offscreenCanvas: boolean;
+}
