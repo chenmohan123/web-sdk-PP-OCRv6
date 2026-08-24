@@ -1,12 +1,4 @@
-import { PPOCRv6Error } from "./errors";
-import type { Detector, OCRPipeline, Recognizer, RuntimeOptions } from "./types";
-
-const unimplemented = (kind: string): never => { throw new PPOCRv6Error("INVALID_MANIFEST", `${kind} requires a validated model manifest`); };
-export const createDetector = (_options: RuntimeOptions = {}): Detector => unimplemented("Detector");
-export const createRecognizer = (_options: RuntimeOptions = {}): Recognizer => unimplemented("Recognizer");
-export const createOCR = (_options: RuntimeOptions = {}): OCRPipeline => unimplemented("OCR pipeline");
-export const clearModelCache = async (_modelId?: string): Promise<void> => {};
-export const clearAllModelCache = async (): Promise<void> => {};
+export { createPublicDetector as createDetector, createPublicRecognizer as createRecognizer, createPublicOCR as createOCR, clearCurrentModelCache as clearModelCache, clearEveryModelCache as clearAllModelCache, DEFAULT_MANIFEST_URL } from "./factory";
 export { PPOCRv6Error } from "./errors";
 export { ERROR_CODES } from "./errors";
 export type { ErrorCode, ErrorDetails, JSONValue } from "./errors";
@@ -16,6 +8,7 @@ export { selectExecutionPlan } from "./runtime/select-plan";
 export type { ExecutionPlan } from "./runtime/select-plan";
 export { createOrtSession } from "./runtime/ort-session";
 export { createWorkerBridge } from "./runtime/worker-bridge";
+export { createInferenceExecutor } from "./runtime/executor";
 export { parseRuntimeManifest } from "./model/manifest";
 export type { RuntimeManifest, RuntimeManifestAsset, TensorContract, TensorShape } from "./model/manifest";
 export { createModelManager } from "./model/model-manager";
@@ -23,3 +16,4 @@ export type { ModelLoadRequest, ModelLoadResult, ModelManager } from "./model/mo
 export { createMemoryCache } from "./cache/memory-cache";
 export { createIndexedDBCache } from "./cache/indexeddb-cache";
 export type { ModelCache, ModelCacheIdentity } from "./cache/model-cache";
+export { createOCRPipeline } from "./pipeline/ocr";

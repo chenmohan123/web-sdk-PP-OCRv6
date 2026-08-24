@@ -9,7 +9,7 @@ interface WorkerLike extends EventTarget {
 
 export interface WorkerBridge {
   load(model: ArrayBufferLike, backend?: Exclude<Backend, "auto">): Promise<unknown>;
-  run(input: ArrayBuffer | ArrayBufferView | { readonly buffer: ArrayBuffer; readonly dims: readonly number[] }, signal?: AbortSignal): Promise<unknown>;
+  run(input: ArrayBuffer | ArrayBufferView | { readonly buffer: ArrayBuffer; readonly dims: readonly number[]; readonly inputName?: string }, signal?: AbortSignal): Promise<unknown>;
   dispose(): Promise<void>;
 }
 
@@ -58,9 +58,9 @@ export function createWorkerBridge(worker: WorkerLike): WorkerBridge {
     },
     run(input, signal) {
       const requestId = id();
-      if (typeof input === "object" && "dims" in input) return request({ type: "run", requestId, input: input.buffer, dims: input.dims }, transferableBuffers(input.buffer), signal);
+      if (typeof input === "object" && "dims" in input) return request({ type: "run", requestId, input: input.buffer, inputName: input.inputName ?? "x", dims: input.dims }, transferableBuffers(input.buffer), signal);
       const buffer = input instanceof ArrayBuffer ? input : new Uint8Array(input.buffer, input.byteOffset, input.byteLength).slice().buffer;
-      return request({ type: "run", requestId, input: buffer, dims: [1, Math.floor(buffer.byteLength / 4)] }, transferableBuffers(buffer), signal);
+      return request({ type: "run", requestId, input: buffer, inputName: "x", dims: [1, Math.floor(buffer.byteLength / 4)] }, transferableBuffers(buffer), signal);
     },
     async dispose() {
       if (disposed) return;

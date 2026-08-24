@@ -30,10 +30,13 @@ const handle = async (event: MessageEvent<WorkerRequest>) => {
     }
     if (request.type === "run") {
       if (!session) throw new PPOCRv6Error("SESSION_CREATE_FAILED", "Worker session is not loaded");
-      const output = await session.run({ x: new ort.Tensor("float32", new Float32Array(request.input), request.dims) });
+      const output = await session.run({ [request.inputName]: new ort.Tensor("float32", new Float32Array(request.input), request.dims) });
       if (cancelled.delete(request.requestId)) return;
-      const buffers = Object.values(output).flatMap((value) => value instanceof ort.Tensor ? [value.data.buffer as ArrayBuffer] : []);
-      send({ type: "result", requestId: request.requestId, result: output }, buffers);
+      const result = Object.fromEntries(Object.entries(output).flatMap(([name, value]) => value instanceof ort.Tensor
+        ? [[name, { type: value.type, data: value.data.buffer as ArrayBuffer, dims: value.dims }]]
+        : []));
+      const buffers = Object.values(result).map((value) => value.data);
+      send({ type: "result", requestId: request.requestId, result }, buffers);
       return;
     }
     await session?.dispose();
