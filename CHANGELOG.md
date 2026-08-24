@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 - 2026-08-25
+
+- Add repository metadata to the published package so npm Trusted Publisher can verify the GitHub source repository.
+
 ## 0.1.1 - 2026-08-24
 
 - Fix Demo image preview repaint after sample selection and file upload.

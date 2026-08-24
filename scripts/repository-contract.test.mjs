@@ -15,6 +15,7 @@ test("repository exposes a public semver package contract", async () => {
   assert.match(pkg.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
   assert.equal(rootPkg.private, true);
   assert.notEqual(pkg.private, true);
+  assert.equal(pkg.repository?.url, "git+https://github.com/chenmohan123/web-sdk-PP-OCRv6.git");
   assert.equal(pkg.publishConfig.access, "public");
   assert.ok(pkg.exports["."]);
 });
