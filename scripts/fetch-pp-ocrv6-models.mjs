@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
 const modelRoot = path.join(repoRoot, "models", "pp-ocrv6", "1.0.0");
 const sourcePath = path.join(modelRoot, "model-source.json");
+const manifestPath = path.join(modelRoot, "manifest.json");
 const requiredFiles = ["inference.onnx", "inference.json", "inference.yml"];
 
 function parseArgs(argv) {
@@ -58,17 +60,33 @@ async function exists(filePath) {
   try { await readFile(filePath); return true; } catch (error) { if (error?.code === "ENOENT") return false; throw error; }
 }
 
-async function download(url, destination, force) {
-  if (!force && await exists(destination)) return "existing";
+async function validateFile(destination, expected, label) {
+  const bytes = await readFile(destination);
+  if (expected?.bytes !== undefined && bytes.byteLength !== expected.bytes) throw new Error(`${label} existing file has ${bytes.byteLength} bytes; expected ${expected.bytes}. Refusing to relabel stale content.`);
+  if (expected?.sha256 !== undefined) {
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    if (hash !== expected.sha256.toLowerCase()) throw new Error(`${label} existing file sha256 ${hash} does not match expected ${expected.sha256}. Refusing to relabel stale content.`);
+  }
+  return { bytes: bytes.byteLength, sha256: createHash("sha256").update(bytes).digest("hex") };
+}
+
+async function download(url, destination, force, expected, label) {
+  if (!force && await exists(destination)) {
+    const integrity = await validateFile(destination, expected, label);
+    return { status: "existing", ...integrity };
+  }
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok) throw new Error(`Download failed (${response.status}) ${url}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   await writeFile(destination, bytes);
-  return "downloaded";
+  const integrity = await validateFile(destination, expected, label);
+  return { status: "downloaded", ...integrity };
 }
 
 const { revisions, force } = parseArgs(process.argv.slice(2));
 const source = JSON.parse(await readFile(sourcePath, "utf8"));
+const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+const manifestAssets = new Map(manifest.assets.map((asset) => [asset.id, asset]));
 for (const asset of source.assets) {
   const revision = revisions.get(asset.id);
   if (!revision) throw new Error(`Missing fixed --revision for ${asset.id}.`);
@@ -82,8 +100,9 @@ for (const asset of source.assets) {
     const destination = filename === "inference.onnx"
       ? path.join(modelRoot, `${asset.id}.onnx`)
       : path.join(metadataDir, filename);
-    const status = await download(`${baseUrl}/${filename}?download=true`, destination, force);
-    records.push({ filename, url: `${baseUrl}/${filename}`, destination: path.relative(repoRoot, destination), status });
+    const expected = filename === "inference.onnx" ? manifestAssets.get(asset.id) : undefined;
+    const result = await download(`${baseUrl}/${filename}?download=true`, destination, force, expected, `${asset.id}/${filename}`);
+    records.push({ filename, url: `${baseUrl}/${filename}`, destination: path.relative(repoRoot, destination), ...result });
   }
 
   const yml = await readFile(path.join(metadataDir, "inference.yml"), "utf8");

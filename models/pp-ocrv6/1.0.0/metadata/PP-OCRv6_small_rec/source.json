@@ -4,7 +4,8 @@
   "preset": "small",
   "repository": "PaddlePaddle/PP-OCRv6_small_rec_onnx",
   "revision": "b8f84f0b80c529de40b4fbb3544b84fa7233a513",
-  "parameterCount": 5200000,
+  "parameterCount": 5267732,
+  "opset": 11,
   "modelCard": "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx",
   "files": [
     {
