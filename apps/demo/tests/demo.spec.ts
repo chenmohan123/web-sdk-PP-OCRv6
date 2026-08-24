@@ -21,6 +21,9 @@ test("starts in Chinese with the left-center-right OCR workflow", async ({ page 
 test("runs the fixture, paints polygons, and links image and OCR row highlighting", async ({ page }) => {
   await page.goto("/?fixture=1");
   await page.getByRole("button", { name: "使用示例" }).click();
+  const sourceImage = page.getByTestId("source-image");
+  await expect.poll(() => sourceImage.boundingBox().then((box) => box?.width ?? 0)).toBeGreaterThan(100);
+  await expect.poll(() => sourceImage.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
   await page.getByRole("button", { name: "开始识别" }).click();
   await expect(page.getByTestId("status")).toContainText("识别完成");
   const canvas = page.getByTestId("result-canvas");

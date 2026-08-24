@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_MANIFEST_URL } from "../src/factory";
 import type { CustomModel, DetectionResult, ModelSelection, RuntimeInfo } from "../src/types";
 
 const customManifest: CustomModel = { manifest: { id: "custom-ocr", version: "1.0.0" } };
@@ -33,5 +34,9 @@ describe("public runtime result contract", () => {
     expect([customManifest, presetSelection, customSelection]).toHaveLength(3);
     expect(result).toMatchObject({ image: { width: 100, height: 50 }, model: { id: "pp-ocrv6" }, runtime: { actualBackend: "wasm" } });
     expect(result.timings).toMatchObject({ decodeMs: 0, totalMs: 0 });
+  });
+
+  it("loads the default manifest from a browser CORS-compatible origin", () => {
+    expect(DEFAULT_MANIFEST_URL).toMatch(/^https:\/\/raw\.githubusercontent\.com\/chenmohan123\/web-sdk-PP-OCRv6\/main\/models\/pp-ocrv6\/1\.0\.0\/manifest\.json$/);
   });
 });

@@ -50,6 +50,7 @@ test("runtime manifest pins all official PP-OCRv6 assets", async () => {
     assert.match(asset.sha256, sha256, `${asset.id} sha256`);
     assert.equal(asset.precision, "fp32", `${asset.id} precision`);
     assert.match(asset.url, /^https:\/\//, `${asset.id} URL`);
+    assert.match(asset.url, /^https:\/\/huggingface\.co\/PaddlePaddle\/PP-OCRv6_.+_onnx\/resolve\/[a-f0-9]{40}\/inference\.onnx$/, `${asset.id} CORS model URL`);
     assert.match(asset.huggingFace.url, /^https:\/\//, `${asset.id} HF URL`);
     assert.match(asset.huggingFace.revision, revisionSha, `${asset.id} HF revision`);
     assert.match(asset.upstream.revision, revisionSha, `${asset.id} upstream revision`);

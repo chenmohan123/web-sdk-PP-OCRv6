@@ -27,7 +27,7 @@ await ocr.dispose();
 
 ## 模型分发
 
-六个官方 ONNX 源文件由 Git LFS 版本化保存。npm 包只包含 SDK、Worker、类型、manifest 和字典，不包含 ONNX。默认从不可变 GitHub Release 地址下载并校验文件大小与 SHA-256；Hugging Face 固定 revision 记录为官方来源/备用地址。用户可提供自定义 manifest 与自托管模型。
+六个官方 ONNX 源文件由 Git LFS 版本化保存。npm 包只包含 SDK、Worker、类型、manifest 和字典，不包含 ONNX。浏览器默认从带 CORS 的 Hugging Face 固定 revision 地址下载并校验文件大小与 SHA-256；GitHub Release 保留为版本化归档源。用户可提供自定义 manifest 与自托管模型。
 
 ## 文档与示例
 

@@ -11,7 +11,7 @@ import { createInferenceExecutor, type InferenceExecutor } from "./runtime/execu
 import { selectExecutionPlan } from "./runtime/select-plan";
 import type { CustomModel, Detector, ModelInfo, ModelPreset, ModelVariant, OCRPipeline, Recognizer, RuntimeInfo, RuntimeOptions } from "./types";
 
-export const DEFAULT_MANIFEST_URL = "https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/manifest.json";
+export const DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/chenmohan123/web-sdk-PP-OCRv6/main/models/pp-ocrv6/1.0.0/manifest.json";
 const DEFAULT_VERSION = "1.0.0";
 const defaultCache = createIndexedDBCache();
 

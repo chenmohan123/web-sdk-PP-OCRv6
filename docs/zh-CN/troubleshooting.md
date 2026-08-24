@@ -2,7 +2,7 @@
 
 [English](../en/troubleshooting.md)
 
-- `MODEL_DOWNLOAD_FAILED`：确认 Release 已存在、URL 可访问、响应允许 CORS。
+- `MODEL_DOWNLOAD_FAILED`：确认 Hugging Face 固定 revision URL 可访问，或自定义模型服务器响应允许 CORS。
 - `MODEL_INTEGRITY_FAILED`：文件大小或 SHA-256 与 manifest 不一致；不要绕过校验，重新发布不可变资产。
 - `CAPABILITY_UNSUPPORTED`：改用 `wasm`，或启用 HTTPS、WebGPU/Worker 所需环境。Worker 不可用时显式选择 `execution: "main"`。
 - `OUT_OF_MEMORY`：降低输入分辨率或改用 tiny/small，释放不再使用的实例。

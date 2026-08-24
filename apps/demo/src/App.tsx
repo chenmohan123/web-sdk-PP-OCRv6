@@ -42,6 +42,7 @@ export function App() {
   const [error, setError] = useState<{ code: string; message: string }>();
   const [source, setSource] = useState<Blob>();
   const [imageUrl, setImageUrl] = useState<string>();
+  const [imageReady, setImageReady] = useState(false);
   const [result, setResult] = useState<OCRResult>();
   const [selected, setSelected] = useState<number>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,7 +56,7 @@ export function App() {
   useEffect(() => {
     const canvas = canvasRef.current;
     const image = imageRef.current;
-    if (!canvas || !image) return;
+    if (!canvas || !image || !imageReady || image.naturalWidth === 0) return;
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
     const context = canvas.getContext("2d");
@@ -71,7 +72,7 @@ export function App() {
       context.fillStyle = line.index === selected ? "rgba(245, 158, 11, .18)" : "rgba(22, 163, 74, .1)";
       context.fill(); context.stroke();
     }
-  }, [result, selected, imageUrl]);
+  }, [result, selected, imageUrl, imageReady]);
 
   const timingRows = useMemo(() => [
     [copy.total, result?.timings.totalMs], [copy.cold, result ? result.timings.modelDownloadMs + result.timings.integrityMs + result.timings.sessionMs : undefined],
@@ -80,7 +81,7 @@ export function App() {
 
   const setImage = (blob: Blob, url?: string) => {
     if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl);
-    setSource(blob); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined);
+    setSource(blob); setImageReady(false); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined);
   };
   const useSample = async () => { const response = await fetch("./samples/ocr-fixture.png"); setImage(await response.blob(), "./samples/ocr-fixture.png"); };
   const run = async () => {
@@ -98,7 +99,7 @@ export function App() {
       const value = caught as { code?: string; message?: string }; setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) }); setStatus(value.code === "CAPABILITY_UNSUPPORTED" ? "unsupported" : "error");
     }
   };
-  const reset = () => { abortRef.current?.abort(); setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined); };
+  const reset = () => { abortRef.current?.abort(); setSource(undefined); setImageReady(false); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined); };
   const canvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = event.currentTarget; const bounds = canvas.getBoundingClientRect(); const x = (event.clientX - bounds.left) * canvas.width / bounds.width; const y = (event.clientY - bounds.top) * canvas.height / bounds.height;
     const found = result?.lines.find((line) => { const xs = line.polygon.map((point) => point.x); const ys = line.polygon.map((point) => point.y); return x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys); });
@@ -108,7 +109,7 @@ export function App() {
   const statusText = status === "loading" ? copy.loading : status === "running" ? copy.running : status === "success" ? copy.success : status === "error" ? copy.error : status === "unsupported" ? copy.unsupported : copy.ready;
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.0</span></p></div></div><div className="header-actions"><span className="privacy">{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer"><Github size={16}/>{copy.github}</a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
+    <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.1</span></p></div></div><div className="header-actions"><span className="privacy">{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer"><Github size={16}/>{copy.github}</a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
     <section className="statusbar" data-testid="status"><span className={`status-dot ${status}`}/><strong>{statusText}</strong>{notice && <span className="notice">{notice}</span>}{error && <span className="error-text">{copy.errorCode}: {error.code} · {error.message}</span>}</section>
     <section className="workspace">
       <aside className="controls panel" data-testid="controls-panel"><div className="panel-title"><Cpu size={17}/><h2>{copy.controls}</h2></div>
@@ -122,7 +123,7 @@ export function App() {
         <div className="file-actions"><label className="button secondary"><Upload size={16}/>{source ? copy.replace : copy.choose}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) setImage(file); }}/></label><button className="secondary" onClick={() => void useSample()}><ImagePlus size={16}/>{copy.sample}</button></div>
         <div className="run-actions"><button className="primary" disabled={!source || status === "loading" || status === "running"} onClick={() => void run()}><Play size={17}/>{copy.start}</button><button className="icon-button" title={copy.abort} onClick={() => abortRef.current?.abort()}><Square size={16}/></button><button className="icon-button" title={copy.reset} onClick={reset}><RotateCcw size={17}/></button></div>
       </aside>
-      <section className="image-panel panel" data-testid="image-panel"><div className="panel-title"><ImagePlus size={17}/><h2>{copy.preview}</h2>{result && <span className="count">{result.lines.length}</span>}</div><div className="canvas-stage">{imageUrl ? <><img ref={imageRef} src={imageUrl} alt={copy.imageAlt} onLoad={() => setSelected((value) => value)}/><canvas ref={canvasRef} data-testid="result-canvas" onClick={canvasClick}/></> : <div className="empty"><ImagePlus size={34}/><p>{copy.empty}</p></div>}</div><p className="mobile-hint">{copy.mobileHint}</p></section>
+      <section className="image-panel panel" data-testid="image-panel"><div className="panel-title"><ImagePlus size={17}/><h2>{copy.preview}</h2>{result && <span className="count">{result.lines.length}</span>}</div><div className="canvas-stage">{imageUrl ? <><img ref={imageRef} data-testid="source-image" src={imageUrl} alt={copy.imageAlt} onLoad={() => setImageReady(true)}/><canvas ref={canvasRef} data-testid="result-canvas" onClick={canvasClick}/></> : <div className="empty"><ImagePlus size={34}/><p>{copy.empty}</p></div>}</div><p className="mobile-hint">{copy.mobileHint}</p></section>
       <aside className="details panel" data-testid="details-panel">
         <section data-sdk-model-info><div className="panel-title"><Zap size={17}/><h2>{copy.modelInfo}</h2></div><dl><div><dt>{copy.model} DET</dt><dd>PP-OCRv6 {detPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(detStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{detStats[1].toLocaleString()}</dd></div><div><dt>{copy.model} REC</dt><dd>PP-OCRv6 {recPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(recStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{recStats[1].toLocaleString()}</dd></div></dl></section>
         <section data-sdk-runtime-info><h2>{copy.runtimeInfo}</h2><dl><div><dt>{copy.requested}</dt><dd>{backend}</dd></div><div><dt>{copy.actual}</dt><dd>{result?.runtime.actualBackend ?? "-"}</dd></div><div><dt>{copy.execution}</dt><dd>{execution}</dd></div><div><dt>{copy.runtime}</dt><dd>{result?.runtime.runtimeVersion ?? "onnxruntime-web@1.27.0"}</dd></div></dl></section>

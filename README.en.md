@@ -22,7 +22,7 @@ await ocr.dispose();
 
 ## Model distribution
 
-Six official ONNX source files are versioned through Git LFS. The npm package contains SDK code, Worker, types, manifests, and dictionaries, but no ONNX. Runtime downloads use immutable GitHub Release URLs and verify byte count plus SHA-256. Pinned Hugging Face revisions provide official provenance/fallback. Custom manifests and self-hosted assets are supported.
+Six official ONNX source files are versioned through Git LFS. The npm package contains SDK code, Worker, types, manifests, and dictionaries, but no ONNX. Browser downloads use CORS-enabled, pinned Hugging Face revision URLs and verify byte count plus SHA-256. GitHub Release remains the versioned archive source. Custom manifests and self-hosted assets are supported.
 
 ## Documentation and examples
 

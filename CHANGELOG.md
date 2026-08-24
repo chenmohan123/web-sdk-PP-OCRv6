@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-24
+
+- Fix Demo image preview repaint after sample selection and file upload.
+- Use CORS-enabled pinned Hugging Face model URLs as browser defaults; keep GitHub Release assets as the versioned archive source.
+
 ## 0.1.0 - 2026-08-24
 
 - Initial Apache-2.0 release of `web-sdk-pp-ocrv6`.

@@ -50,8 +50,9 @@ select, input[type="url"] { width: 100%; padding: 6px 9px; }
 .image-panel > .panel-title { margin-bottom: 12px; }
 .count, .result-heading span { margin-left: auto; min-width: 24px; height: 22px; padding: 2px 7px; display: grid; place-items: center; border-radius: 12px; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 700; }
 .canvas-stage { position: relative; width: 100%; min-height: 420px; flex: 1; display: grid; place-items: center; overflow: hidden; background: #dbe2ea; border: 1px solid #b8c4d2; }
-.canvas-stage img { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.result-canvas { display: block; max-width: 100%; max-height: calc(100vh - 190px); width: auto; height: auto; background: #fff; box-shadow: 0 2px 12px rgba(15, 23, 42, .14); cursor: crosshair; }
+.canvas-stage img, .result-canvas { grid-area: 1 / 1; max-width: 100%; max-height: calc(100vh - 190px); width: auto; height: auto; }
+.canvas-stage img { display: block; object-fit: contain; pointer-events: none; box-shadow: 0 2px 12px rgba(15, 23, 42, .14); }
+.result-canvas { position: relative; z-index: 1; display: block; background: transparent; cursor: crosshair; }
 .empty { text-align: center; color: #64748b; }
 .empty p { margin: 10px 0; }
 .mobile-hint { display: none; }
