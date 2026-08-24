@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 - 2026-08-25
+
+- Use Node 24 in the npm Trusted Publisher workflow to meet the npm OIDC CLI runtime requirement.
+
 ## 0.1.3 - 2026-08-25
 
 - Fix npm Trusted Publisher OIDC publishing by removing the setup-node registry placeholder token and normalizing the repository URL.
