@@ -1,19 +1,18 @@
 {
-  "name": "web-sdk-pp-ocrv6",
+  "name": "web-sdk-pp-ocrv6-workspace",
   "version": "0.1.0",
   "description": "Browser-first PP-OCRv6 OCR SDK powered by ONNX Runtime Web",
   "repository": { "type": "git", "url": "git+https://github.com/chenmohan123/web-sdk-PP-OCRv6.git" },
   "license": "Apache-2.0",
   "type": "module",
-  "private": false,
+  "private": true,
   "files": ["dist"],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" }, "./inference.worker.js": "./dist/inference.worker.js" },
   "dependencies": { "onnxruntime-web": "1.27.0" },
-  "scripts": { "build": "pnpm --filter @pp-ocrv6/sdk build", "test": "node --test scripts/repository-contract.test.mjs && pnpm --filter @pp-ocrv6/sdk test", "typecheck": "pnpm --filter @pp-ocrv6/sdk typecheck" },
+  "scripts": { "build": "pnpm --filter web-sdk-pp-ocrv6 build", "test": "node --test scripts/repository-contract.test.mjs && pnpm --filter web-sdk-pp-ocrv6 test", "typecheck": "pnpm --filter web-sdk-pp-ocrv6 typecheck" },
   "engines": { "node": ">=22" },
-  "publishConfig": { "access": "public", "provenance": true },
   "devDependencies": { "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "3.2.7" }
 }

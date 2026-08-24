@@ -9,9 +9,11 @@ async function readJson(path) {
 }
 
 test("repository exposes a public semver package contract", async () => {
-  const pkg = await readJson("package.json");
+  const rootPkg = await readJson("package.json");
+  const pkg = await readJson("packages/sdk/package.json");
   assert.equal(pkg.name, "web-sdk-pp-ocrv6");
   assert.match(pkg.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/);
+  assert.equal(rootPkg.private, true);
   assert.notEqual(pkg.private, true);
   assert.equal(pkg.publishConfig.access, "public");
   assert.ok(pkg.exports["."]);

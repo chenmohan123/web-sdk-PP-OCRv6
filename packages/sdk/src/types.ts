@@ -6,7 +6,7 @@ export type ModelSource = ModelManifest | { readonly manifestUrl: string } | Mod
 export interface RuntimeOptions { readonly backend?: Backend; readonly execution?: ExecutionMode; readonly allowFallback?: boolean; readonly model?: ModelSource; readonly signal?: AbortSignal; }
 export interface Detector { readonly kind: "detector"; load(): Promise<void>; detect(input: unknown): Promise<DetectionResult>; dispose(): void; }
 export interface Recognizer { readonly kind: "recognizer"; load(): Promise<void>; recognize(input: unknown): Promise<RecognitionResult>; dispose(): void; }
-export interface OCRPipeline { readonly kind: "ocr"; load(): Promise<void>; recognize(input: unknown): Promise<OCRResult>; dispose(): void; }
+export interface OCRPipeline { readonly kind: "ocr"; load(): Promise<void>; ocr(input: unknown, options?: RuntimeOptions): Promise<OCRResult>; recognize(input: unknown, options?: RuntimeOptions): Promise<OCRResult>; dispose(): void; }
 export interface Point { readonly x: number; readonly y: number; }
 export interface Detection { readonly index: number; readonly polygon: readonly Point[]; readonly score: number; }
 export interface DetectionResult { readonly detections: readonly Detection[]; readonly timing: Timing; }

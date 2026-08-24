@@ -9,7 +9,7 @@ repository: https://github.com/chenmohan123/web-sdk-PP-OCRv6
 demo:
   url: https://chenmohan123.github.io/web-sdk-PP-OCRv6/
   defaultLanguage: zh-CN
-  framework: vanilla
+  framework: react
   localProcessing: true
 docs:
   zhCN: docs/zh-CN/quick-start.md
@@ -45,9 +45,9 @@ cache:
   clearAll: true
   estimate: true
 examples:
-  vanilla: { status: available, path: examples/vanilla }
-  react: { status: available, path: examples/react }
-  vite: { status: available, path: examples/vanilla }
+  vanilla: { status: planned, path: examples/vanilla }
+  react: { status: planned, path: examples/react }
+  vite: { status: planned, path: examples/vanilla }
   cdn: { status: planned, path: examples/vanilla }
   wechatWebView: { status: planned, path: examples/vanilla }
 verification:
