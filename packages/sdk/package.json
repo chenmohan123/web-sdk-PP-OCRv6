@@ -12,6 +12,6 @@
   "types": "./dist/index.d.ts",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js" }, "./inference.worker.js": "./dist/inference.worker.js" },
   "dependencies": { "onnxruntime-web": "1.27.0" },
-  "scripts": { "build": "tsup --config tsup.config.ts", "test": "vitest run", "typecheck": "tsc --noEmit" },
+  "scripts": { "build": "tsup --config tsup.config.ts && node ../../scripts/copy-runtime-assets.mjs", "test": "vitest run", "typecheck": "tsc --noEmit" },
   "devDependencies": { "@types/node": "24.0.0", "tsup": "8.5.1", "typescript": "5.9.3", "vitest": "3.2.7" }
 }

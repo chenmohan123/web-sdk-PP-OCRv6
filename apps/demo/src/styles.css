@@ -1,4 +1,4 @@
-:root { color: #0f172a; background: #f8fafc; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-synthesis: none; }
+:root { /* Shared standards/v1/ui-tokens.json vocabulary: --sdk-color-* */ --sdk-color-page: #f8fafc; --sdk-color-panel: #ffffff; --sdk-color-text: #0f172a; --sdk-color-action: #2563eb; --sdk-color-success: #15803d; --sdk-color-warning: #b45309; --sdk-color-error: #b91c1c; color: var(--sdk-color-text); background: var(--sdk-color-page); font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-synthesis: none; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 button, input, select { font: inherit; letter-spacing: 0; }

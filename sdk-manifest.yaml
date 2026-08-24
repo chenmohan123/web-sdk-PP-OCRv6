@@ -35,7 +35,7 @@ model:
     - { id: PP-OCRv6_small_rec, bytes: 21159378, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_small_rec.onnx, sha256: "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634" }
     - { id: PP-OCRv6_tiny_rec, bytes: 4462639, precision: fp32, url: https://github.com/chenmohan123/web-sdk-PP-OCRv6/releases/download/v0.1.0/PP-OCRv6_tiny_rec.onnx, sha256: "9ef676d6ed3c88256a2d92c640c44f25b0c40947e111b14b8be8f594091563e6" }
 performance:
-  timings: [modelDownloadMs, modelCacheReadMs, integrityMs, sessionMs, preprocessMs, inferenceMs, postprocessMs, totalMs]
+  timings: [modelDownloadMs, modelCacheReadMs, integrityMs, sessionMs, decodeMs, preprocessMs, inferenceMs, postprocessMs, totalMs]
   coldStartDefined: true
   warmRunDefined: true
 cache:

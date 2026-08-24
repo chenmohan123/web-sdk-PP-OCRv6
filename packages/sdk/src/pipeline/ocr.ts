@@ -59,15 +59,16 @@ export function createOCRPipeline(components: OCRPipelineComponents): OCRPipelin
       stageTimings: { detectionMs, cropMs, recognitionMs },
     };
   };
+  const ocr = (input: unknown, options?: RunOptions) => {
+    const result = queue.then(() => run(input, options));
+    queue = result.then(() => undefined, () => undefined);
+    return result;
+  };
   return {
     kind: "ocr",
     load,
-    ocr(input, options) {
-      const result = queue.then(() => run(input, options));
-      queue = result.then(() => undefined, () => undefined);
-      return result;
-    },
-    recognize(input, options) { return this.ocr(input, options); },
+    ocr,
+    recognize: ocr,
     async dispose() {
       if (disposed) return;
       disposed = true;

@@ -31,4 +31,13 @@ describe("OCR pipeline", () => {
     expect(recognizer.dispose).toHaveBeenCalledOnce();
     await expect(pipeline.ocr("image")).rejects.toMatchObject({ code: "DISPOSED" });
   });
+
+  it("keeps recognize callable when the method is passed as a callback", async () => {
+    const detector = { kind: "detector" as const, load: vi.fn(), detect: vi.fn().mockResolvedValue({ detections: [], image: { width: 1, height: 1 }, model, runtime, timings }) , dispose: vi.fn() };
+    const recognizer = { kind: "recognizer" as const, load: vi.fn(), recognize: vi.fn(), dispose: vi.fn() };
+    const pipeline = createOCRPipeline({ detector, recognizer, decode: vi.fn().mockResolvedValue({ width: 1, height: 1, source: "image", data: new Uint8ClampedArray(4) }), model, runtime });
+    const recognize = pipeline.recognize;
+    await recognize("image");
+    expect(detector.detect).toHaveBeenCalledOnce();
+  });
 });

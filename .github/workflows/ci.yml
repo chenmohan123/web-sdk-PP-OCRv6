@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - run: node --test scripts/check-doc-parity.test.mjs examples/tests/examples.test.mjs scripts/verify-release.test.mjs
+      - run: pnpm --filter web-sdk-pp-ocrv6 typecheck
+      - run: pnpm --filter web-sdk-pp-ocrv6 build
+      - run: pnpm --filter @ppocrv6/demo typecheck
+      - run: pnpm --filter @ppocrv6/demo build
+      - run: node scripts/verify-package-assets.mjs
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm --filter @ppocrv6/demo test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with: { name: playwright-results, path: apps/demo/test-results }

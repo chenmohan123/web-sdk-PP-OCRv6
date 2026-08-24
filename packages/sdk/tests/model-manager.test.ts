@@ -22,4 +22,12 @@ describe("model manager", () => {
     await manager.load(expected);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+
+  it("rejects a corrupted cached entry instead of serving it", async () => {
+    const cache = createMemoryCache();
+    const expected = { modelId: "pp", version: "1", variant: "small", bytes: 3, sha256: "a".repeat(64), url: "https://cdn.test/model.onnx" };
+    await cache.set(expected, new Uint8Array([1, 2, 3]));
+    const manager = createModelManager({ cache, hash: vi.fn().mockResolvedValue("b".repeat(64)) });
+    await expect(manager.load(expected)).rejects.toMatchObject({ code: "MODEL_INTEGRITY_FAILED" });
+  });
 });

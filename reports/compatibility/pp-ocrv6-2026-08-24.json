@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "verifiedAt": "2026-08-24",
+  "scope": "local automated evidence",
+  "modelVersion": "1.0.0",
+  "runtimeVersion": "onnxruntime-web@1.27.0",
+  "entries": [
+    { "surface": "Chromium via Playwright", "os": "Windows local runner", "device": "desktop emulation", "backend": "wasm", "execution": "worker", "status": "passed", "evidence": "apps/demo/tests/demo.spec.ts" },
+    { "surface": "Chromium via Playwright", "os": "Windows local runner", "device": "390px responsive viewport", "backend": "wasm", "execution": "worker", "status": "passed", "evidence": "apps/demo/tests/demo.spec.ts" },
+    { "surface": "WebGPU", "os": "not tested", "device": "not tested", "backend": "webgpu", "execution": "worker", "status": "unknown", "note": "Feature detection and strict selection are implemented; no hardware evidence is claimed." },
+    { "surface": "WeChat Official Account H5", "os": "not tested", "device": "not tested", "backend": "wasm", "execution": "worker", "status": "unknown", "note": "HTTPS web-view example is provided; dated WeChat device evidence is pending." },
+    { "surface": "WeChat mini-program web-view", "os": "not tested", "device": "not tested", "backend": "wasm", "execution": "worker", "status": "unknown", "note": "Native mini-program runtime is explicitly unsupported." }
+  ]
+}
