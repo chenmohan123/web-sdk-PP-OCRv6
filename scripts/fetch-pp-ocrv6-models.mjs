@@ -72,6 +72,7 @@ async function validateFile(destination, expected, label) {
 
 async function download(url, destination, force, expected, label) {
   if (!force && await exists(destination)) {
+    if (!expected?.bytes || !expected?.sha256) throw new Error(`${label} already exists without expected bytes and sha256. Refusing to relabel unverified content; use --force to refresh it.`);
     const integrity = await validateFile(destination, expected, label);
     return { status: "existing", ...integrity };
   }
