@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-08-25
+
+- Fix npm Trusted Publisher OIDC publishing by removing the setup-node registry placeholder token and normalizing the repository URL.
+
 ## 0.1.2 - 2026-08-25
 
 - Add repository metadata to the published package so npm Trusted Publisher can verify the GitHub source repository.
