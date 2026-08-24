@@ -8,7 +8,8 @@ export const createOCR = (_options: RuntimeOptions = {}): OCRPipeline => unimple
 export const clearModelCache = async (_modelId?: string): Promise<void> => {};
 export const clearAllModelCache = async (): Promise<void> => {};
 export { PPOCRv6Error } from "./errors";
-export type { ErrorCode, ErrorDetails } from "./errors";
+export { ERROR_CODES } from "./errors";
+export type { ErrorCode, ErrorDetails, JSONValue } from "./errors";
 export type * from "./types";
 export { probeCapabilities } from "./runtime/capabilities";
 export { selectExecutionPlan } from "./runtime/select-plan";

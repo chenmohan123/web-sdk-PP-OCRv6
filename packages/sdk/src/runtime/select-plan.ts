@@ -8,7 +8,7 @@ export interface ExecutionPlan {
 }
 
 export const selectExecutionPlan = (options: Pick<RuntimeOptions, "backend" | "execution" | "allowFallback"> = {}, capabilities: Capabilities): ExecutionPlan => {
-  const requestedBackend = options.backend ?? "auto";
+  const requestedBackend = options.backend ?? "wasm";
   const execution = options.execution ?? "worker";
   if (execution === "worker" && !capabilities.worker) {
     throw new PPOCRv6Error("CAPABILITY_UNSUPPORTED", "Worker execution is unavailable", { capability: "worker", execution });
@@ -28,10 +28,8 @@ export const selectExecutionPlan = (options: Pick<RuntimeOptions, "backend" | "e
     if (!candidates.length) throw new PPOCRv6Error("CAPABILITY_UNSUPPORTED", "No supported backend is available", { capability: "wasm|webgpu", backend: requestedBackend });
   } else if (webgpuAvailable) {
     candidates = ["webgpu"];
-  } else if (wasmAvailable) {
-    candidates = ["wasm"];
   } else {
-    throw new PPOCRv6Error("CAPABILITY_UNSUPPORTED", "No supported backend is available", { capability: "wasm|webgpu", backend: requestedBackend });
+    throw new PPOCRv6Error("CAPABILITY_UNSUPPORTED", "Auto backend selection requires allowFallback", { backend: requestedBackend, allowFallback: false });
   }
   return { requestedBackend, execution, candidates };
 };
