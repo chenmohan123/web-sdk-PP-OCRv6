@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { Hand, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import type { OCRResult } from "web-sdk-pp-ocrv6";
 import { clampOffset, fitScale, type ImageSize, type Offset, type ViewportSize, zoomAroundPoint } from "./viewportGeometry";
+import { overlayStrokeWidth } from "./overlayStroke";
 
 type OCRLine = OCRResult["lines"][number];
 
@@ -227,13 +228,13 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
       context.beginPath();
       line.polygon.forEach((point, index) => index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y));
       context.closePath();
-      context.lineWidth = line.index === selected ? 8 : 4;
+      context.lineWidth = overlayStrokeWidth(scale, line.index === selected);
       context.strokeStyle = line.index === selected ? "#f59e0b" : "#16a34a";
       context.fillStyle = line.index === selected ? "rgba(245, 158, 11, .18)" : "rgba(22, 163, 74, .1)";
       context.fill();
       context.stroke();
     }
-  }, [imageReady, imageSize, lines, selected]);
+  }, [imageReady, imageSize, lines, scale, selected]);
 
   const transform = imageSize ? `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${scale})` : undefined;
   const rootClass = `image-viewport${panMode || spacePressed ? " pan-mode" : ""}${dragging ? " dragging" : ""}`;
