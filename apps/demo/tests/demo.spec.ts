@@ -36,6 +36,54 @@ test("runs the fixture, paints polygons, and links image and OCR row highlightin
   await expect(row).toHaveAttribute("aria-current", "true");
 });
 
+test("keeps the image inside a fixed viewport and supports zoom and fit reset", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  const viewport = page.getByTestId("image-viewport");
+  const canvas = page.getByTestId("result-canvas");
+  await expect.poll(() => canvas.getAttribute("width")).toMatch(/^[1-9]\d+$/);
+  await expect.poll(() => viewport.getAttribute("data-fit-scale")).not.toBe("1");
+  const box = await viewport.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.35);
+  await page.mouse.wheel(0, -500);
+  await expect.poll(async () => Number(await viewport.getAttribute("data-scale"))).toBeGreaterThan(Number(await viewport.getAttribute("data-fit-scale")));
+  await page.getByRole("button", { name: "适配窗口", exact: true }).click();
+  await expect.poll(async () => Number(await viewport.getAttribute("data-scale"))).toBeCloseTo(Number(await viewport.getAttribute("data-fit-scale")), 3);
+  await expect(viewport).toHaveAttribute("data-offset-x", "0");
+  await expect(viewport).toHaveAttribute("data-offset-y", "0");
+});
+
+test("supports persistent pan mode, temporary Space pan, and Escape exit", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  const viewport = page.getByTestId("image-viewport");
+  await expect.poll(() => page.getByTestId("source-image").evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "放大" }).click();
+  const pan = page.getByRole("button", { name: "拖动查看" });
+  await pan.click();
+  await expect(pan).toHaveAttribute("aria-pressed", "true");
+  const box = await viewport.boundingBox();
+  expect(box).not.toBeNull();
+  if (box) {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 2, box.y + box.height * 2);
+    await page.mouse.up();
+    const offset = await viewport.evaluate((element) => ({ x: Number(element.getAttribute("data-offset-x")), y: Number(element.getAttribute("data-offset-y")), scale: Number(element.getAttribute("data-scale")) }));
+    const canvasSize = await page.getByTestId("result-canvas").evaluate((element: HTMLCanvasElement) => ({ width: element.width, height: element.height }));
+    expect(Math.abs(offset.x)).toBeLessThanOrEqual(Math.max(0, (canvasSize.width * offset.scale - box.width) / 2) + 1);
+    expect(Math.abs(offset.y)).toBeLessThanOrEqual(Math.max(0, (canvasSize.height * offset.scale - box.height) / 2) + 1);
+  }
+  await page.keyboard.down("Space");
+  await expect(viewport).toHaveAttribute("data-space-drag", "true");
+  await page.keyboard.up("Space");
+  await expect(viewport).toHaveAttribute("data-space-drag", "false");
+  await page.keyboard.press("Escape");
+  await expect(pan).toHaveAttribute("aria-pressed", "false");
+});
+
 test("has no horizontal overflow at 390px and switches copy to English", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?fixture=1");
@@ -48,4 +96,6 @@ test("keeps the mobile OCR result area tall enough for long documents", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?fixture=1");
   expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(520);
+  expect(await page.locator(".viewport-canvas").evaluate((element) => ({ touchAction: getComputedStyle(element).touchAction }))).toMatchObject({ touchAction: "none" });
+  expect(await page.getByTestId("image-viewport").evaluate((element) => element.clientWidth <= document.documentElement.clientWidth)).toBe(true);
 });
