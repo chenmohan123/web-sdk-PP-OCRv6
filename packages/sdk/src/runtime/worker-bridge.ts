@@ -1,4 +1,5 @@
 import { PPOCRv6Error } from "../errors";
+import type { OrtSessionProgress } from "./ort-session";
 import type { Backend } from "../types";
 import { transferableBuffers, type WorkerRequest, type WorkerResponse } from "./protocol";
 
@@ -16,7 +17,7 @@ export interface WorkerBridge {
 let nextId = 0;
 const id = () => `ocrv6-${++nextId}`;
 
-export function createWorkerBridge(worker: WorkerLike): WorkerBridge {
+export function createWorkerBridge(worker: WorkerLike, options: { onProgress?: (progress: OrtSessionProgress) => void } = {}): WorkerBridge {
   const pending = new Map<string, { resolve(value: unknown): void; reject(error: unknown): void }>();
   let disposed = false;
   const rejectAll = (error: PPOCRv6Error) => { for (const entry of pending.values()) entry.reject(error); pending.clear(); };
@@ -25,7 +26,10 @@ export function createWorkerBridge(worker: WorkerLike): WorkerBridge {
     if (!data?.requestId) return;
     const entry = pending.get(data.requestId);
     if (!entry) return;
-    if (data.type === "progress") return;
+    if (data.type === "progress") {
+      try { options.onProgress?.({ phase: data.phase === "session" ? "session" : "inference", ...(data.progress === undefined ? {} : { progress: data.progress }) }); } catch { /* 用户回调异常不能中断 Worker 请求。 */ }
+      return;
+    }
     pending.delete(data.requestId);
     if (data.type === "error") entry.reject(new PPOCRv6Error(data.code, data.message, data.details));
     else entry.resolve(data.result);

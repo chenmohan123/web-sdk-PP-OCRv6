@@ -20,6 +20,18 @@ describe("ORT session factory", () => {
     expect(session.release).toHaveBeenCalledTimes(1);
   });
 
+  it("isolates progress callback failures", async () => {
+    const session = fakeSession();
+    const handle = await createOrtSession({
+      ort: { InferenceSession: { create: vi.fn().mockResolvedValue(session) }, env: { wasm: {} } } as never,
+      backend: "wasm",
+      model: new ArrayBuffer(0),
+      onProgress: () => { throw new Error("consumer failed"); },
+    });
+    await expect(handle.run({})).resolves.toEqual({ output: { data: new Float32Array([1]) } });
+    await handle.dispose();
+  });
+
   it("translates create and run failures to stable errors and honors abort", async () => {
     const create = vi.fn().mockRejectedValue(new Error("out of memory while creating"));
     const ort = { InferenceSession: { create }, env: { wasm: {} } } as never;

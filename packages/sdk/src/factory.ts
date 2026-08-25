@@ -9,6 +9,7 @@ import { createRecognizerEngine } from "./recognizer/recognizer";
 import { validateRecognitionDictionary } from "./recognizer/dictionary";
 import { probeCapabilities } from "./runtime/capabilities";
 import { createInferenceExecutor, type InferenceExecutor } from "./runtime/executor";
+import { createProgressReporter, safeEmitProgress, type ProgressReporter } from "./progress";
 import { selectExecutionPlan } from "./runtime/select-plan";
 import type { CustomModel, Detector, ModelInfo, ModelPreset, ModelVariant, OCRPipeline, Recognizer, RuntimeInfo, RuntimeOptions } from "./types";
 
@@ -19,7 +20,8 @@ const defaultCache = createIndexedDBCache();
 const isCustom = (selection: ModelVariant): selection is CustomModel => typeof selection === "object";
 const asPreset = (selection: ModelVariant | undefined): ModelPreset => typeof selection === "string" ? selection : "small";
 
-async function fetchManifest(url: string, signal?: AbortSignal): Promise<RuntimeManifest> {
+async function fetchManifest(url: string, signal?: AbortSignal, onProgress?: (event: Parameters<NonNullable<RuntimeOptions["onProgress"]>>[0]) => void): Promise<RuntimeManifest> {
+  safeEmitProgress(onProgress, { phase: "manifest", progress: 0 });
   let response: Response;
   try { response = await fetch(url, signal === undefined ? {} : { signal }); }
   catch (error) {
@@ -27,20 +29,26 @@ async function fetchManifest(url: string, signal?: AbortSignal): Promise<Runtime
     throw new PPOCRv6Error("MODEL_DOWNLOAD_FAILED", error instanceof Error ? error.message : String(error), { url });
   }
   if (!response.ok) throw new PPOCRv6Error("MODEL_DOWNLOAD_FAILED", `Manifest download failed with HTTP ${response.status}`, { url, status: response.status });
-  try { return parseRuntimeManifest(await response.json(), url); }
+  try {
+    const manifest = parseRuntimeManifest(await response.json(), url);
+    safeEmitProgress(onProgress, { phase: "manifest", progress: 1 });
+    return manifest;
+  }
   catch (error) { if (error instanceof PPOCRv6Error) throw error; throw new PPOCRv6Error("INVALID_MANIFEST", error instanceof Error ? error.message : String(error)); }
 }
 
-async function resolveManifest(selection: ModelVariant | undefined, signal?: AbortSignal): Promise<{ manifest: RuntimeManifest; manifestUrl?: string; preset: ModelPreset }> {
+async function resolveManifest(selection: ModelVariant | undefined, signal?: AbortSignal, onProgress?: RuntimeOptions["onProgress"]): Promise<{ manifest: RuntimeManifest; manifestUrl?: string; preset: ModelPreset }> {
   if (selection && isCustom(selection)) {
-    if ("manifestUrl" in selection) return { manifest: await fetchManifest(selection.manifestUrl, signal), manifestUrl: selection.manifestUrl, preset: "small" };
+    if ("manifestUrl" in selection) return { manifest: await fetchManifest(selection.manifestUrl, signal, onProgress), manifestUrl: selection.manifestUrl, preset: "small" };
+    safeEmitProgress(onProgress, { phase: "manifest", progress: 0 });
+    safeEmitProgress(onProgress, { phase: "manifest", progress: 1 });
     return { manifest: parseRuntimeManifest(selection.manifest), preset: "small" };
   }
-  return { manifest: await fetchManifest(DEFAULT_MANIFEST_URL, signal), manifestUrl: DEFAULT_MANIFEST_URL, preset: asPreset(selection) };
+  return { manifest: await fetchManifest(DEFAULT_MANIFEST_URL, signal, onProgress), manifestUrl: DEFAULT_MANIFEST_URL, preset: asPreset(selection) };
 }
 
-async function resolveAsset(role: "det" | "rec", selection: ModelVariant | undefined, signal?: AbortSignal): Promise<{ manifest: RuntimeManifest; asset: RuntimeManifestAsset; manifestUrl?: string; preset: ModelPreset }> {
-  const resolved = await resolveManifest(selection, signal);
+async function resolveAsset(role: "det" | "rec", selection: ModelVariant | undefined, signal?: AbortSignal, onProgress?: RuntimeOptions["onProgress"]): Promise<{ manifest: RuntimeManifest; asset: RuntimeManifestAsset; manifestUrl?: string; preset: ModelPreset }> {
+  const resolved = await resolveManifest(selection, signal, onProgress);
   const asset = resolved.manifest.assets.find((candidate) => candidate.role === role && (isCustom(selection as ModelVariant) || candidate.preset === resolved.preset));
   if (!asset) throw new PPOCRv6Error("INVALID_MANIFEST", `Manifest has no ${role} asset for preset ${resolved.preset}`);
   return { ...resolved, asset };
@@ -64,17 +72,21 @@ async function loadDictionary(asset: RuntimeManifestAsset, manifestUrl: string |
 
 const modelInfo = (manifest: RuntimeManifest, asset: RuntimeManifestAsset, preset: ModelPreset, manifestUrl?: string): ModelInfo => ({ id: manifest.modelId, version: manifest.version, preset, ...(manifestUrl === undefined ? {} : { manifestUrl }), component: asset.id, bytes: asset.bytes, ...(typeof asset.parameterCount === "number" ? { parameterCount: asset.parameterCount } : {}) });
 
-async function prepare(options: RuntimeOptions, role: "det" | "rec"): Promise<{ asset: RuntimeManifestAsset; model: ModelInfo; runtime: RuntimeInfo; loaded: Awaited<ReturnType<ReturnType<typeof createModelManager>["load"]>>; executor: InferenceExecutor; manifestUrl?: string }> {
+async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: ProgressReporter): Promise<{ asset: RuntimeManifestAsset; model: ModelInfo; runtime: RuntimeInfo; loaded: Awaited<ReturnType<ReturnType<typeof createModelManager>["load"]>>; executor: InferenceExecutor; manifestUrl?: string }> {
   const selection = options.model?.[role];
-  const resolved = await resolveAsset(role, selection, options.signal);
+  const resolved = await resolveAsset(role, selection, options.signal, (event) => reporter.emit(role, event));
+  reporter.register(role, resolved.asset.bytes);
   const plan = selectExecutionPlan(options, probeCapabilities());
-  const manager = createModelManager({ cache: defaultCache });
-  const loaded = await manager.load({ modelId: resolved.manifest.modelId, version: resolved.manifest.version, variant: resolved.asset.id, bytes: resolved.asset.bytes, sha256: resolved.asset.sha256, url: resolved.asset.url }, options.signal);
+  const loaded = await createModelManager({ cache: defaultCache, onProgress: (event) => reporter.emit(role, event), onSource: (source) => reporter.markSource(role, source) }).load({ modelId: resolved.manifest.modelId, version: resolved.manifest.version, variant: resolved.asset.id, bytes: resolved.asset.bytes, sha256: resolved.asset.sha256, url: resolved.asset.url }, options.signal);
   let executor: InferenceExecutor | undefined;
   let actualBackend = plan.candidates[0]!;
   let lastError: unknown;
   for (const backend of plan.candidates) {
-    try { executor = await createInferenceExecutor({ model: loaded.bytes, backend, execution: plan.execution }); actualBackend = backend; break; }
+    try {
+      executor = await createInferenceExecutor({ model: loaded.bytes, backend, execution: plan.execution, onProgress: (progress) => reporter.emit(role, { phase: progress.phase === "session" ? "load" : "inference", ...(progress.progress === undefined ? {} : { progress: progress.progress }) }) });
+      actualBackend = backend;
+      break;
+    }
     catch (error) { lastError = error; }
   }
   if (!executor) throw lastError;
@@ -88,13 +100,14 @@ async function prepare(options: RuntimeOptions, role: "det" | "rec"): Promise<{ 
   };
 }
 
-export function createPublicDetector(options: RuntimeOptions = {}): Detector {
+export function createPublicDetector(options: RuntimeOptions = {}, progressReporter?: ProgressReporter): Detector {
   let delegate: Detector | undefined;
   let setup: Promise<Detector> | undefined;
   let disposed = false;
   const ready = () => {
     if (disposed) return Promise.reject(new PPOCRv6Error("DISPOSED", "Detector is disposed"));
-    setup ??= prepare(options, "det").then((prepared) => {
+    const reporter = progressReporter ?? createProgressReporter(options.onProgress, ["det"]);
+    setup ??= prepare(options, "det", reporter).then((prepared) => {
       const engine = createDetectorEngine({ asset: prepared.asset, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
       delegate = engine;
       return engine;
@@ -104,13 +117,14 @@ export function createPublicDetector(options: RuntimeOptions = {}): Detector {
   return { kind: "detector", async load() { await (await ready()).load(); }, async detect(input, runOptions) { return (await ready()).detect(input, runOptions); }, async dispose() { if (disposed) return; disposed = true; await delegate?.dispose(); } };
 }
 
-export function createPublicRecognizer(options: RuntimeOptions = {}): Recognizer {
+export function createPublicRecognizer(options: RuntimeOptions = {}, progressReporter?: ProgressReporter): Recognizer {
   let delegate: Recognizer | undefined;
   let setup: Promise<Recognizer> | undefined;
   let disposed = false;
   const ready = () => {
     if (disposed) return Promise.reject(new PPOCRv6Error("DISPOSED", "Recognizer is disposed"));
-    setup ??= prepare(options, "rec").then(async (prepared) => {
+    const reporter = progressReporter ?? createProgressReporter(options.onProgress, ["rec"]);
+    setup ??= prepare(options, "rec", reporter).then(async (prepared) => {
       const dictionary = await loadDictionary(prepared.asset, prepared.manifestUrl, options.signal);
       const engine = createRecognizerEngine({ asset: prepared.asset, dictionary, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
       delegate = engine;
@@ -122,8 +136,9 @@ export function createPublicRecognizer(options: RuntimeOptions = {}): Recognizer
 }
 
 export function createPublicOCR(options: RuntimeOptions = {}): OCRPipeline {
-  const detector = createPublicDetector(options);
-  const recognizer = createPublicRecognizer(options);
+  const reporter = createProgressReporter(options.onProgress, ["det", "rec"]);
+  const detector = createPublicDetector(options, reporter);
+  const recognizer = createPublicRecognizer(options, reporter);
   const model: ModelInfo = { id: "pp-ocrv6", version: DEFAULT_VERSION };
   const plan = (() => { try { return selectExecutionPlan(options, probeCapabilities()); } catch { return undefined; } })();
   const runtime: RuntimeInfo = { requestedBackend: options.backend ?? "wasm", actualBackend: plan?.candidates[0] ?? "wasm", execution: options.execution ?? "worker", runtimeVersion: "onnxruntime-web@1.27.0" };

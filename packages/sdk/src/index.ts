@@ -17,3 +17,5 @@ export { createMemoryCache } from "./cache/memory-cache";
 export { createIndexedDBCache } from "./cache/indexeddb-cache";
 export type { ModelCache, ModelCacheIdentity } from "./cache/model-cache";
 export { createOCRPipeline } from "./pipeline/ocr";
+export { createProgressReporter, safeEmitProgress } from "./progress";
+export type { ProgressCallback, ProgressReporter, ProgressSource } from "./progress";

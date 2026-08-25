@@ -28,6 +28,9 @@ export interface OrtSessionHandle {
 }
 
 const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
+const emitProgress = (callback: ((progress: OrtSessionProgress) => void) | undefined, progress: OrtSessionProgress): void => {
+  try { callback?.(progress); } catch { /* 用户回调异常不能中断 runtime。 */ }
+};
 const translate = (error: unknown, phase: "create" | "run"): PPOCRv6Error => {
   const message = messageOf(error);
   if (/abort|cancel|terminat/i.test(message)) return new PPOCRv6Error("ABORTED", message);
@@ -42,7 +45,7 @@ export async function createOrtSession(options: OrtSessionOptions): Promise<OrtS
   const sessionOptions: Record<string, unknown> = { executionProviders };
   if (options.numThreads !== undefined) sessionOptions.intraOpNumThreads = options.numThreads;
   const started = performance.now();
-  options.onProgress?.({ phase: "session", progress: 0 });
+  emitProgress(options.onProgress, { phase: "session", progress: 0 });
   let session: OrtSession;
   try {
     session = await ort.InferenceSession.create(options.model, sessionOptions);
@@ -50,7 +53,7 @@ export async function createOrtSession(options: OrtSessionOptions): Promise<OrtS
     throw translate(error, "create");
   }
   const sessionMs = performance.now() - started;
-  options.onProgress?.({ phase: "session", progress: 1 });
+  emitProgress(options.onProgress, { phase: "session", progress: 1 });
   let disposed = false;
   return {
     backend: options.backend,
@@ -61,14 +64,14 @@ export async function createOrtSession(options: OrtSessionOptions): Promise<OrtS
       let abortReject: ((reason: PPOCRv6Error) => void) | undefined;
       const onAbort = () => { abortReject?.(new PPOCRv6Error("ABORTED", "Inference aborted")); };
       signal?.addEventListener("abort", onAbort, { once: true });
-      options.onProgress?.({ phase: "inference", progress: 0 });
+      emitProgress(options.onProgress, { phase: "inference", progress: 0 });
       try {
         const runPromise = session.run(feeds, { terminate: false });
         const result = signal
           ? await Promise.race([runPromise, new Promise<Record<string, unknown>>((_, reject) => { abortReject = reject; })])
           : await runPromise;
         if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Inference aborted");
-        options.onProgress?.({ phase: "inference", progress: 1 });
+        emitProgress(options.onProgress, { phase: "inference", progress: 1 });
         return result;
       } catch (error) {
         if (error instanceof PPOCRv6Error) throw error;

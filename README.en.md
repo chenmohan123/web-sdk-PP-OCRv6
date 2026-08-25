@@ -13,10 +13,27 @@ pnpm add web-sdk-pp-ocrv6
 ```ts
 import { createOCR } from "web-sdk-pp-ocrv6";
 
-const ocr = createOCR({ model: { det: "small", rec: "small" }, backend: "wasm", execution: "worker", allowFallback: false });
+const ocr = createOCR({
+  model: { det: "small", rec: "small" },
+  backend: "wasm",
+  execution: "worker",
+  allowFallback: false,
+  onProgress(event) {
+    if (event.phase === "download" && event.progress !== undefined) {
+      console.log(`Model download ${Math.round(event.progress * 100)}%`);
+    }
+  },
+});
+await ocr.load();
 const result = await ocr.ocr(file);
 await ocr.dispose();
 ```
+
+`onProgress` reports the `manifest`, `cache`, `download`, `integrity`, `load`, and
+`inference` phases. Browsers without a streaming response still report the
+download phase but cannot provide a percentage. Exceptions thrown by the callback
+do not interrupt the SDK. A full OCR pipeline combines detector and recognizer
+network downloads using manifest byte weights.
 
 `wasm` means CPU and `webgpu` means GPU. Explicit selections are strict. Fallback from WebGPU to WASM is permitted only with `backend: "auto"` and `allowFallback: true`.
 

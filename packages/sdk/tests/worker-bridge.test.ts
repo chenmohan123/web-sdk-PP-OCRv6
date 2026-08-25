@@ -15,6 +15,32 @@ class FakeWorker extends EventTarget {
 }
 
 describe("worker bridge", () => {
+  it("forwards progress messages without resolving the pending request", async () => {
+    const worker = new FakeWorker();
+    const progress = vi.fn();
+    const bridge = createWorkerBridge(worker, { onProgress: progress });
+    const load = bridge.load(new ArrayBuffer(2));
+    const requestId = (worker.sent[0]!.message as { requestId: string }).requestId;
+    worker.respond({ type: "progress", requestId, phase: "session", progress: 0 });
+    expect(progress).toHaveBeenCalledWith({ phase: "session", progress: 0 });
+    worker.respond({ type: "result", requestId, result: { ok: true } });
+    await expect(load).resolves.toEqual({ ok: true });
+    await bridge.dispose();
+  });
+
+  it("forwards inference progress to the active run request", async () => {
+    const worker = new FakeWorker();
+    const progress = vi.fn();
+    const bridge = createWorkerBridge(worker, { onProgress: progress });
+    const running = bridge.run(new ArrayBuffer(4));
+    const requestId = (worker.sent[0]!.message as { requestId: string }).requestId;
+    worker.respond({ type: "progress", requestId, phase: "inference", progress: 0 });
+    expect(progress).toHaveBeenCalledWith({ phase: "inference", progress: 0 });
+    worker.respond({ type: "result", requestId, result: {} });
+    await running;
+    await bridge.dispose();
+  });
+
   it("transfers model and input buffers and resolves protocol responses", async () => {
     const worker = new FakeWorker();
     const bridge = createWorkerBridge(worker);
