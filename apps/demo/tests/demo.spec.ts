@@ -11,6 +11,7 @@ test("starts in Chinese with the left-center-right OCR workflow", async ({ page 
   await expect(page.locator("[data-sdk-runtime-info]")).toBeVisible();
   await expect(page.locator("[data-sdk-timing]")).toBeVisible();
   await expect(page.locator("[data-sdk-cache-clear]")).toHaveCount(2);
+  expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(400);
   expect(await page.getByTestId("details-panel").evaluate((panel) => {
     const metadata = panel.querySelector("[data-sdk-model-info]");
     const results = panel.querySelector("[data-testid=ocr-results]");
@@ -41,4 +42,10 @@ test("has no horizontal overflow at 390px and switches copy to English", async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   await page.getByRole("button", { name: "English" }).click();
   await expect(page.getByRole("button", { name: "Start OCR" })).toBeVisible();
+});
+
+test("keeps the mobile OCR result area tall enough for long documents", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?fixture=1");
+  expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(520);
 });
