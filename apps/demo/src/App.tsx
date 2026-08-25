@@ -109,7 +109,7 @@ export function App() {
   const statusText = status === "loading" ? copy.loading : status === "running" ? copy.running : status === "success" ? copy.success : status === "error" ? copy.error : status === "unsupported" ? copy.unsupported : copy.ready;
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.5</span></p></div></div><div className="header-actions"><span className="privacy">{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer"><Github size={16}/>{copy.github}</a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
+    <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.6</span></p></div></div><div className="header-actions"><span className="privacy">{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer"><Github size={16}/>{copy.github}</a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
     <section className="statusbar" data-testid="status"><span className={`status-dot ${status}`}/><strong>{statusText}</strong>{notice && <span className="notice">{notice}</span>}{error && <span className="error-text">{copy.errorCode}: {error.code} · {error.message}</span>}</section>
     <section className="workspace">
       <aside className="controls panel" data-testid="controls-panel"><div className="panel-title"><Cpu size={17}/><h2>{copy.controls}</h2></div>
