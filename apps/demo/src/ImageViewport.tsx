@@ -31,6 +31,7 @@ const isEditableTarget = (target: EventTarget | null) => target instanceof HTMLE
 
 export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, onSelect, copy }: ImageViewportProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const viewportCanvasRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointersRef = useRef(new Map<number, Point>());
@@ -69,10 +70,18 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
     setOffset(next.offset);
   }, [fitScaleValue, fitView, imageSize, offset, scale, viewportSize]);
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+  const handleWheel = useCallback((event: WheelEvent) => {
     event.preventDefault();
+    event.stopPropagation();
     applyZoom(scale * (event.deltaY < 0 ? 1.1 : 0.9), getPoint(event.clientX, event.clientY));
-  };
+  }, [applyZoom, getPoint, scale]);
+
+  useEffect(() => {
+    const canvas = viewportCanvasRef.current;
+    if (!canvas) return;
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    return () => canvas.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!imageSize) return;
@@ -241,7 +250,6 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
     data-space-drag={spacePressed}
     data-dragging={dragging}
     tabIndex={0}
-    onWheel={handleWheel}
     onPointerDown={handlePointerDown}
     onPointerMove={handlePointerMove}
     onPointerUp={handlePointerEnd}
@@ -255,7 +263,7 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
       <button type="button" className={panMode ? "active" : ""} title={copy.pan} aria-label={copy.pan} aria-pressed={panMode} onClick={() => setPanMode((current) => !current)} disabled={!imageSize}><Hand size={15} />{copy.pan}</button>
       <span className="pan-hint">{copy.panHint}</span>
     </div>
-    <div className="viewport-canvas">
+    <div ref={viewportCanvasRef} className="viewport-canvas">
       {imageUrl ? <>
         <img ref={imageRef} data-testid="source-image" className="image-source" src={imageUrl} alt={imageAlt} onLoad={(event) => { const image = event.currentTarget; setImageSize({ width: image.naturalWidth, height: image.naturalHeight }); setImageReady(true); }} />
         <canvas ref={canvasRef} data-testid="result-canvas" className="result-canvas" style={transform ? { width: imageSize?.width, height: imageSize?.height, transform } : undefined} onClick={handleCanvasClick} />
