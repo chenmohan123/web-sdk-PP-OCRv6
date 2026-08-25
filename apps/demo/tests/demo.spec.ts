@@ -84,6 +84,20 @@ test("supports persistent pan mode, temporary Space pan, and Escape exit", async
   await expect(pan).toHaveAttribute("aria-pressed", "false");
 });
 
+test("keeps page scroll position when the pointer wheel is over the image viewport", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  await expect(page.locator(".viewport-canvas")).toHaveCSS("overscroll-behavior", "contain");
+  await page.evaluate(() => window.scrollTo(0, 160));
+  const before = await page.evaluate(() => window.scrollY);
+  const box = await page.getByTestId("image-viewport").boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 360);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(before);
+});
+
 test("has no horizontal overflow at 390px and switches copy to English", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?fixture=1");
