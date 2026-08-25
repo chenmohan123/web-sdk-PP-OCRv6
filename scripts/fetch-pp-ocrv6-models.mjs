@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractCharacterDictionary } from "./pp-ocrv6-dictionary.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
@@ -31,29 +32,6 @@ function parseArgs(argv) {
   }
   if (revisions.size === 0) throw new Error("A fixed --revision asset-id=commit-sha is required; floating branches are refused.");
   return { revisions, force };
-}
-
-function parseYamlScalar(value) {
-  const trimmed = value.trim();
-  if (trimmed.startsWith("'") && trimmed.endsWith("'")) return trimmed.slice(1, -1).replaceAll("''", "'");
-  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    try { return JSON.parse(trimmed); } catch { return trimmed.slice(1, -1); }
-  }
-  return trimmed;
-}
-
-function extractCharacterDictionary(yaml) {
-  const lines = yaml.split(/\r?\n/);
-  const start = lines.findIndex((line) => /^  character_dict:\s*$/.test(line));
-  if (start < 0) return [];
-  const characters = [];
-  for (let index = start + 1; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (/^  [A-Za-z_][\w-]*:/.test(line)) break;
-    const match = /^  - (.*)$/.exec(line);
-    if (match) characters.push(parseYamlScalar(match[1]));
-  }
-  return characters.filter((character) => character.length > 0);
 }
 
 async function exists(filePath) {

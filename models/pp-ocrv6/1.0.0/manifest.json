@@ -87,7 +87,7 @@
       "input": { "name": "x", "dtype": "float32", "shape": ["N", 3, 48, "W"], "layout": "NCHW" },
       "output": { "name": "fetch_name_0", "dtype": "float32", "shape": ["N", "T", 18710], "semantics": "ctc_logits" },
       "preprocessing": { "color": "BGR", "resize": { "height": 48, "width": 320, "keepRatio": true, "pad": "right" }, "normalize": { "scale": "1/255", "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5] }, "layout": "NCHW" },
-      "decoder": { "name": "CTCLabelDecode", "blankIndex": 0, "dictionary": "dictionaries/PP-OCRv6_medium_rec.txt", "dictionaryEntries": 18707 }
+      "decoder": { "name": "CTCLabelDecode", "blankIndex": 0, "dictionary": "dictionaries/PP-OCRv6_medium_rec.txt", "dictionaryEntries": 18708 }
     },
     {
       "id": "PP-OCRv6_small_rec",
@@ -106,7 +106,7 @@
       "input": { "name": "x", "dtype": "float32", "shape": ["N", 3, 48, "W"], "layout": "NCHW" },
       "output": { "name": "fetch_name_0", "dtype": "float32", "shape": ["N", "T", 18710], "semantics": "ctc_logits" },
       "preprocessing": { "color": "BGR", "resize": { "height": 48, "width": 320, "keepRatio": true, "pad": "right" }, "normalize": { "scale": "1/255", "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5] }, "layout": "NCHW" },
-      "decoder": { "name": "CTCLabelDecode", "blankIndex": 0, "dictionary": "dictionaries/PP-OCRv6_small_rec.txt", "dictionaryEntries": 18707 }
+      "decoder": { "name": "CTCLabelDecode", "blankIndex": 0, "dictionary": "dictionaries/PP-OCRv6_small_rec.txt", "dictionaryEntries": 18708 }
     },
     {
       "id": "PP-OCRv6_tiny_rec",
@@ -125,7 +125,7 @@
       "input": { "name": "x", "dtype": "float32", "shape": ["N", 3, 48, "W"], "layout": "NCHW" },
       "output": { "name": "fetch_name_0", "dtype": "float32", "shape": ["N", "T", 6906], "semantics": "ctc_logits" },
       "preprocessing": { "color": "BGR", "resize": { "height": 48, "width": 320, "keepRatio": true, "pad": "right" }, "normalize": { "scale": "1/255", "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5] }, "layout": "NCHW" },
-      "decoder": { "name": "CTCLabelDecode", "blankIndex": 0, "dictionary": "dictionaries/PP-OCRv6_tiny_rec.txt", "dictionaryEntries": 6903 }
+      "decoder": { "name": "CTCLabelDecode", "blankIndex": 0, "dictionary": "dictionaries/PP-OCRv6_tiny_rec.txt", "dictionaryEntries": 6904 }
     }
   ]
 }

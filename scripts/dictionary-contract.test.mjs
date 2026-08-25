@@ -1,0 +1,28 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import { extractCharacterDictionary } from "./pp-ocrv6-dictionary.mjs";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const modelRoot = path.join(repoRoot, "models", "pp-ocrv6", "1.0.0");
+
+async function readDictionary(kind) {
+  const file = path.join(modelRoot, "dictionaries", `PP-OCRv6_${kind}_rec.txt`);
+  return (await readFile(file, "utf8")).replace(/\r/g, "").split("\n").filter((line) => line.length > 0);
+}
+
+for (const [kind, expectedLength, expectedSpaceIndex] of [["medium", 18708, 1748], ["small", 18708, 1748], ["tiny", 6904, 616]]) {
+  test(`${kind} recognition dictionary preserves official Unicode indexes`, async () => {
+    const yaml = await readFile(path.join(modelRoot, "metadata", `PP-OCRv6_${kind}_rec`, "inference.yml"), "utf8");
+    const official = extractCharacterDictionary(yaml);
+    const generated = await readDictionary(kind);
+    assert.equal(official.length, expectedLength);
+    assert.equal(generated.length, expectedLength);
+    assert.equal(official[expectedSpaceIndex], "　");
+    assert.equal(generated[expectedSpaceIndex], "　");
+    assert.deepEqual(generated, official);
+    assert.equal(generated.at(-1), official.at(-1));
+  });
+}

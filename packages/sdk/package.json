@@ -1,6 +1,6 @@
 {
   "name": "web-sdk-pp-ocrv6",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "PP-OCRv6 browser OCR runtime",
   "repository": { "type": "git", "url": "https://github.com/chenmohan123/web-sdk-PP-OCRv6.git" },
   "license": "Apache-2.0",

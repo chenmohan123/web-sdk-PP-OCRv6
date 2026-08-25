@@ -13,6 +13,7 @@
 ### Task 1: 增加字符表生成回归测试
 
 **Files:**
+- Create: `scripts/pp-ocrv6-dictionary.mjs`
 - Create: `scripts/dictionary-contract.test.mjs`
 - Modify: `package.json`（将测试加入 `test` 或 `verify` 流程）
 
@@ -33,6 +34,7 @@
 ### Task 2: 修复官方字符表解析并重生成字典
 
 **Files:**
+- Modify: `scripts/pp-ocrv6-dictionary.mjs`
 - Modify: `scripts/fetch-pp-ocrv6-models.mjs:45-57`
 - Modify: `models/pp-ocrv6/1.0.0/dictionaries/PP-OCRv6_medium_rec.txt`
 - Modify: `models/pp-ocrv6/1.0.0/dictionaries/PP-OCRv6_small_rec.txt`
@@ -41,7 +43,7 @@
 
 - [ ] **Step 1: 修改解析逻辑**
 
-让 `extractCharacterDictionary` 对列表值只做 YAML 引号解析，不调用 `trim()`；以 `character.length > 0` 过滤真正的空字符串，从而保留 `U+3000`。
+将 `extractCharacterDictionary` 放在共享脚本模块中，对列表值只做 YAML 引号解析，不调用 `trim()`；以 `character.length > 0` 过滤真正的空字符串，从而保留 `U+3000`。抓取脚本和回归测试都导入该模块，避免测试复制实现。
 
 - [ ] **Step 2: 重新生成字典**
 

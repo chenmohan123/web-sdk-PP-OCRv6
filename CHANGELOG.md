@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 - 2026-08-25
+
+- 修复 PP-OCRv6 recognition 字典丢失全角空格导致的中文字符索引错位，并在 SDK 加载时校验字典与模型输出类别数量。
+
 ## 0.1.4 - 2026-08-25
 
 - Use Node 24 in the npm Trusted Publisher workflow to meet the npm OIDC CLI runtime requirement.
