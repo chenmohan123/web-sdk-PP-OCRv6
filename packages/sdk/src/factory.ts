@@ -6,6 +6,7 @@ import { parseRuntimeManifest, type RuntimeManifest, type RuntimeManifestAsset }
 import { createModelManager } from "./model/model-manager";
 import { createOCRPipeline } from "./pipeline/ocr";
 import { createRecognizerEngine } from "./recognizer/recognizer";
+import { validateRecognitionDictionary } from "./recognizer/dictionary";
 import { probeCapabilities } from "./runtime/capabilities";
 import { createInferenceExecutor, type InferenceExecutor } from "./runtime/executor";
 import { selectExecutionPlan } from "./runtime/select-plan";
@@ -47,7 +48,7 @@ async function resolveAsset(role: "det" | "rec", selection: ModelVariant | undef
 
 async function loadDictionary(asset: RuntimeManifestAsset, manifestUrl: string | undefined, signal?: AbortSignal): Promise<readonly string[]> {
   const decoder = asset.decoder ?? {};
-  if (Array.isArray(decoder.characters) && decoder.characters.every((value) => typeof value === "string")) return decoder.characters as string[];
+  if (Array.isArray(decoder.characters) && decoder.characters.every((value) => typeof value === "string")) return validateRecognitionDictionary(asset, decoder.characters as string[]);
   if (typeof decoder.dictionary !== "string") throw new PPOCRv6Error("INVALID_MANIFEST", `Recognition asset ${asset.id} does not declare a dictionary`);
   let url: string;
   try { url = new URL(decoder.dictionary, manifestUrl).toString(); }
@@ -58,7 +59,7 @@ async function loadDictionary(asset: RuntimeManifestAsset, manifestUrl: string |
   if (!response.ok) throw new PPOCRv6Error("MODEL_DOWNLOAD_FAILED", `Dictionary download failed with HTTP ${response.status}`, { url, status: response.status });
   const lines = (await response.text()).replace(/\r/g, "").split("\n");
   if (lines.at(-1) === "") lines.pop();
-  return lines;
+  return validateRecognitionDictionary(asset, lines);
 }
 
 const modelInfo = (manifest: RuntimeManifest, asset: RuntimeManifestAsset, preset: ModelPreset, manifestUrl?: string): ModelInfo => ({ id: manifest.modelId, version: manifest.version, preset, ...(manifestUrl === undefined ? {} : { manifestUrl }), component: asset.id, bytes: asset.bytes, ...(typeof asset.parameterCount === "number" ? { parameterCount: asset.parameterCount } : {}) });
