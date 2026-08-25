@@ -6,4 +6,6 @@
 
 `backend` is `wasm | webgpu | auto`; `execution` is `worker | main`. Explicit CPU/GPU requests never silently fall back. Results include `image`, `model`, `runtime`, and nine `timings` fields. Stable failures use `PPOCRv6Error.code`, including `INVALID_INPUT`, `MODEL_INTEGRITY_FAILED`, `CAPABILITY_UNSUPPORTED`, `ABORTED`, and `DISPOSED`.
 
+`RuntimeOptions.onProgress` observes the `manifest`, `cache`, `download`, `integrity`, `load`, and `inference` phases. Streaming responses provide `progress`, `loadedBytes`, and `totalBytes`; browsers without `Response.body` still report the download phase without a percentage. Callback exceptions are isolated and do not change loading or inference results.
+
 Use `clearModelCache(modelId?, version?)` for the current version and `clearAllModelCache()` for all model entries.

@@ -5,10 +5,11 @@ import { en } from "./i18n/en";
 import { zhCN } from "./i18n/zh-CN";
 import { ImageViewport } from "./ImageViewport";
 
-type Status = "idle" | "loading" | "running" | "success" | "error" | "unsupported";
+type Status = "idle" | "downloading" | "loading" | "running" | "success" | "error" | "unsupported";
 type Mode = "ocr" | "detection" | "recognition";
 type Preset = "medium" | "small" | "tiny";
 const fixtureMode = new URLSearchParams(location.search).has("fixture");
+const fixtureErrorMode = new URLSearchParams(location.search).has("fixture-error");
 const modelStats = {
   det: { medium: [62032837, 15486640], small: [9880512, 2453368], tiny: [1780590, 428420] },
   rec: { medium: [76554979, 19115263], small: [21159378, 5267732], tiny: [4462639, 1104524] },
@@ -39,6 +40,7 @@ export function App() {
   const [allowFallback, setAllowFallback] = useState(false);
   const [manifestUrl, setManifestUrl] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+  const [downloadProgress, setDownloadProgress] = useState<number>();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState<{ code: string; message: string }>();
   const [source, setSource] = useState<Blob>();
@@ -52,37 +54,40 @@ export function App() {
 
   useEffect(() => () => { if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); void ocrRef.current?.dispose(); }, [imageUrl]);
   const timingRows = useMemo(() => [
-    [copy.total, result?.timings.totalMs], [copy.cold, result ? result.timings.modelDownloadMs + result.timings.integrityMs + result.timings.sessionMs : undefined],
+    [copy.total, result?.timings.totalMs], [copy.modelDownload, result?.timings.modelDownloadMs], [copy.modelLoad, result?.timings.sessionMs],
     [copy.preprocess, result?.timings.preprocessMs], [copy.inference, result?.timings.inferenceMs], [copy.postprocess, result?.timings.postprocessMs],
   ] as const, [copy, result]);
 
   const setImage = (blob: Blob, url?: string) => {
     if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl);
-    setSource(blob); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined);
+    setSource(blob); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined);
   };
   const useSample = async () => { const response = await fetch("./samples/ocr-fixture.png"); setImage(await response.blob(), "./samples/ocr-fixture.png"); };
   const run = async () => {
     if (!source) return;
     abortRef.current?.abort();
-    const controller = new AbortController(); abortRef.current = controller; setError(undefined); setNotice(""); setStatus("loading");
+    const controller = new AbortController(); abortRef.current = controller; setError(undefined); setNotice(""); setDownloadProgress(undefined); setStatus("loading");
     try {
-      if (fixtureMode) { await new Promise((resolve) => setTimeout(resolve, 80)); setStatus("running"); await new Promise((resolve) => setTimeout(resolve, 80)); const fixture = fixtureResult(); const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } }; setResult(next); setSelected(0); setStatus("success"); return; }
+      if (fixtureMode) { setStatus("downloading"); setDownloadProgress(0.25); await new Promise((resolve) => setTimeout(resolve, 150)); setStatus("loading"); await new Promise((resolve) => setTimeout(resolve, 150)); if (fixtureErrorMode) throw { code: "MODEL_DOWNLOAD_FAILED", message: "Failed to fetch" }; setStatus("running"); await new Promise((resolve) => setTimeout(resolve, 150)); const fixture = fixtureResult(); const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } }; setResult(next); setSelected(0); setStatus("success"); return; }
       await ocrRef.current?.dispose();
       const custom = manifestUrl.trim() ? { manifestUrl: manifestUrl.trim() } : undefined;
-      const ocr = createOCR({ backend, execution, allowFallback, model: { det: custom ?? detPreset, rec: custom ?? recPreset }, signal: controller.signal });
+      const ocr = createOCR({ backend, execution, allowFallback, model: { det: custom ?? detPreset, rec: custom ?? recPreset }, signal: controller.signal, onProgress: (event) => {
+        if (event.phase === "download") { setStatus("downloading"); setDownloadProgress(event.progress); }
+        else if (event.phase === "inference") setStatus("running");
+        else setStatus("loading");
+      } });
       ocrRef.current = ocr; await ocr.load(); setStatus("running"); const next = await ocr.ocr(source, { signal: controller.signal }); setResult(next); setSelected(next.lines[0]?.index); setStatus("success");
     } catch (caught) {
-      if (controller.signal.aborted) { setStatus("idle"); return; }
+      if (controller.signal.aborted) { setStatus("idle"); setDownloadProgress(undefined); return; }
       const value = caught as { code?: string; message?: string }; setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) }); setStatus(value.code === "CAPABILITY_UNSUPPORTED" ? "unsupported" : "error");
     }
   };
-  const reset = () => { abortRef.current?.abort(); setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined); };
+  const reset = () => { abortRef.current?.abort(); setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined); };
   const clearCache = async (all: boolean) => { await (all ? clearAllModelCache() : clearModelCache()); setNotice(copy.cacheDone ?? ""); };
-  const statusText = status === "loading" ? copy.loading : status === "running" ? copy.running : status === "success" ? copy.success : status === "error" ? copy.error : status === "unsupported" ? copy.unsupported : copy.ready;
+  const statusText = status === "downloading" ? copy.downloading : status === "loading" ? copy.loading : status === "running" ? copy.running : status === "success" ? copy.success : status === "error" ? copy.error : status === "unsupported" ? copy.unsupported : copy.ready;
 
   return <main className="app-shell">
     <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.6</span></p></div></div><div className="header-actions"><span className="privacy">{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer"><Github size={16}/>{copy.github}</a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
-    <section className="statusbar" data-testid="status"><span className={`status-dot ${status}`}/><strong>{statusText}</strong>{notice && <span className="notice">{notice}</span>}{error && <span className="error-text">{copy.errorCode}: {error.code} · {error.message}</span>}</section>
     <section className="workspace">
       <aside className="controls panel" data-testid="controls-panel"><div className="panel-title"><Cpu size={17}/><h2>{copy.controls}</h2></div>
         <fieldset><legend>{copy.mode}</legend><div className="segmented three">{(["ocr", "detection", "recognition"] as const).map((value) => <button key={value} className={mode === value ? "active" : ""} aria-pressed={mode === value} onClick={() => setMode(value)}>{copy[value]}</button>)}</div></fieldset>
@@ -93,14 +98,15 @@ export function App() {
         <label className="check"><input type="checkbox" checked={allowFallback} onChange={(event) => setAllowFallback(event.target.checked)}/><span>{copy.fallback}</span></label>
         <label>{copy.custom}<input type="url" value={manifestUrl} placeholder="https://cdn.example/manifest.json" onChange={(event) => setManifestUrl(event.target.value)}/></label>
         <div className="file-actions"><label className="button secondary"><Upload size={16}/>{source ? copy.replace : copy.choose}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) setImage(file); }}/></label><button className="secondary" onClick={() => void useSample()}><ImagePlus size={16}/>{copy.sample}</button></div>
-        <div className="run-actions"><button className="primary" disabled={!source || status === "loading" || status === "running"} onClick={() => void run()}><Play size={17}/>{copy.start}</button><button className="icon-button" title={copy.abort} onClick={() => abortRef.current?.abort()}><Square size={16}/></button><button className="icon-button" title={copy.reset} onClick={reset}><RotateCcw size={17}/></button></div>
+        <div className="run-actions"><button className="primary" disabled={!source || status === "loading" || status === "downloading" || status === "running"} onClick={() => void run()}><Play size={17}/>{copy.start}</button><button className="icon-button" title={copy.abort} onClick={() => abortRef.current?.abort()}><Square size={16}/></button><button className="icon-button" title={copy.reset} onClick={reset}><RotateCcw size={17}/></button></div>
+        <div className={`run-status ${status}`} data-testid="status" aria-live="polite"><div className="run-status-line"><span className={`status-dot ${status}`}/><strong>{statusText}</strong>{status === "downloading" && downloadProgress !== undefined && <span className="download-percent">{Math.round(downloadProgress * 100)}%</span>}</div>{status === "downloading" && downloadProgress !== undefined && <div className="download-track" data-testid="download-progress" role="progressbar" aria-label={copy.downloading} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(downloadProgress * 100)}><span style={{ width: `${Math.round(downloadProgress * 100)}%` }}/></div>}{error && <span className="error-text">{copy.errorCode}: {error.code} · {error.message}</span>}</div>
       </aside>
       <section className="image-panel panel" data-testid="image-panel"><div className="panel-title"><ImagePlus size={17}/><h2>{copy.preview}</h2>{result && <span className="count">{result.lines.length}</span>}</div><div className="canvas-stage"><ImageViewport imageUrl={imageUrl} imageAlt={copy.imageAlt} emptyText={copy.empty} lines={result?.lines ?? []} selected={selected} onSelect={setSelected} copy={copy}/></div><p className="mobile-hint">{copy.mobileHint}</p></section>
       <aside className="details panel" data-testid="details-panel">
         <section data-sdk-model-info><div className="panel-title"><Zap size={17}/><h2>{copy.modelInfo}</h2></div><dl><div><dt>{copy.model} DET</dt><dd>PP-OCRv6 {detPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(detStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{detStats[1].toLocaleString()}</dd></div><div><dt>{copy.model} REC</dt><dd>PP-OCRv6 {recPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(recStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{recStats[1].toLocaleString()}</dd></div></dl></section>
         <section data-sdk-runtime-info><h2>{copy.runtimeInfo}</h2><dl><div><dt>{copy.requested}</dt><dd>{backend}</dd></div><div><dt>{copy.actual}</dt><dd>{result?.runtime.actualBackend ?? "-"}</dd></div><div><dt>{copy.execution}</dt><dd>{execution}</dd></div><div><dt>{copy.runtime}</dt><dd>{result?.runtime.runtimeVersion ?? "onnxruntime-web@1.27.0"}</dd></div></dl></section>
-        <section data-sdk-timing><h2>{copy.timing}</h2><dl>{timingRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}<div><dt>CPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "wasm" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div><div><dt>GPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "webgpu" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div></dl></section>
-        <section className="cache-actions"><button data-sdk-cache-clear onClick={() => void clearCache(false)}><Trash2 size={15}/>{copy.cacheCurrent}</button><button data-sdk-cache-clear onClick={() => void clearCache(true)}><Trash2 size={15}/>{copy.cacheAll}</button></section>
+        <section data-sdk-timing><h2>{copy.timing}</h2><dl>{timingRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}<div className="timing-secondary"><dt>{copy.cacheRead}</dt><dd>{fmtMs(result?.timings.modelCacheReadMs)}</dd></div><div className="timing-secondary"><dt>{copy.integrity}</dt><dd>{fmtMs(result?.timings.integrityMs)}</dd></div><div><dt>CPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "wasm" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div><div><dt>GPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "webgpu" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div></dl></section>
+        <section className="cache-actions"><button data-sdk-cache-clear onClick={() => void clearCache(false)}><Trash2 size={15}/>{copy.cacheCurrent}</button><button data-sdk-cache-clear onClick={() => void clearCache(true)}><Trash2 size={15}/>{copy.cacheAll}</button>{notice && <span className="cache-notice" aria-live="polite">{notice}</span>}</section>
         <section className="ocr-results" data-testid="ocr-results"><div className="result-heading"><h2>{copy.results}</h2><span>{result?.lines.length ?? 0}</span></div>{result?.lines.length ? result.lines.map((line, order) => <button key={line.index} data-testid={`ocr-row-${line.index}`} aria-current={selected === line.index ? "true" : undefined} className={selected === line.index ? "ocr-row selected" : "ocr-row"} onClick={() => setSelected(line.index)}><span className="row-index">{String(order + 1).padStart(2, "0")}</span><span><strong>{line.text}</strong><small>{copy.score} {(line.recognitionScore * 100).toFixed(1)}%</small></span></button>) : <p className="no-results">{copy.noResults}</p>}</section>
       </aside>
     </section>

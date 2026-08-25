@@ -11,12 +11,38 @@ test("starts in Chinese with the left-center-right OCR workflow", async ({ page 
   await expect(page.locator("[data-sdk-runtime-info]")).toBeVisible();
   await expect(page.locator("[data-sdk-timing]")).toBeVisible();
   await expect(page.locator("[data-sdk-cache-clear]")).toHaveCount(2);
+  await expect(page.locator(".statusbar")).toHaveCount(0);
+  await expect(page.getByTestId("status")).toContainText("等待图片");
   expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(400);
   expect(await page.getByTestId("details-panel").evaluate((panel) => {
     const metadata = panel.querySelector("[data-sdk-model-info]");
     const results = panel.querySelector("[data-testid=ocr-results]");
     return Boolean(metadata && results && metadata.compareDocumentPosition(results) & Node.DOCUMENT_POSITION_FOLLOWING);
   })).toBe(true);
+});
+
+test("shows download, loading, running, and completed states in the controls", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  await page.getByRole("button", { name: "开始识别" }).click();
+  await expect(page.getByTestId("status")).toContainText("模型下载中");
+  await expect(page.getByTestId("status")).toContainText("25%");
+  await expect(page.getByTestId("download-progress")).toHaveAttribute("aria-valuenow", "25");
+  await expect(page.getByTestId("status")).toContainText("模型加载中");
+  await expect(page.getByTestId("status")).toContainText("识别中");
+  await expect(page.getByTestId("status")).toContainText("识别完成");
+  await expect(page.locator("[data-sdk-timing]")).toContainText("模型下载");
+  await expect(page.locator("[data-sdk-timing]")).toContainText("模型加载");
+  await expect(page.locator("[data-sdk-timing]")).toContainText("缓存读取");
+  await expect(page.locator("[data-sdk-timing]")).toContainText("完整性校验");
+});
+
+test("renders stable error code and message in the compact status", async ({ page }) => {
+  await page.goto("/?fixture=1&fixture-error=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  await page.getByRole("button", { name: "开始识别" }).click();
+  await expect(page.getByTestId("status")).toContainText("识别失败");
+  await expect(page.getByTestId("status")).toContainText("MODEL_DOWNLOAD_FAILED · Failed to fetch");
 });
 
 test("runs the fixture, paints polygons, and links image and OCR row highlighting", async ({ page }) => {

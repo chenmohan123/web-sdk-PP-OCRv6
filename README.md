@@ -18,10 +18,21 @@ const ocr = createOCR({
   backend: "wasm",
   execution: "worker",
   allowFallback: false,
+  onProgress(event) {
+    if (event.phase === "download" && event.progress !== undefined) {
+      console.log(`模型下载 ${Math.round(event.progress * 100)}%`);
+    }
+  },
 });
+await ocr.load();
 const result = await ocr.ocr(file);
 await ocr.dispose();
 ```
+
+`onProgress` 会报告 `manifest`、`cache`、`download`、`integrity`、`load` 和
+`inference` 阶段。浏览器不提供流式响应时仍会报告下载阶段，但不会提供
+百分比；用户回调抛出的异常不会中断 SDK。完整 OCR 会把检测和识别模型的
+网络下载按清单字节数加权合并。
 
 `wasm` 是 CPU，`webgpu` 是 GPU。显式选择严格执行；只有 `backend: "auto"` 且 `allowFallback: true` 时，SDK 才可从 WebGPU 回退到 WASM。
 
