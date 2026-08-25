@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6 - 2026-08-25
+
+- 修复 CTC recognition 字典未包含 PaddleOCR `use_space_char` 追加的 ASCII 空格，确保字典条目数与模型输出类别数一致。
+
 ## 0.1.5 - 2026-08-25
 
 - 修复 PP-OCRv6 recognition 字典丢失全角空格导致的中文字符索引错位，并在 SDK 加载时校验字典与模型输出类别数量。

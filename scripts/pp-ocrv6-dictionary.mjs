@@ -6,7 +6,7 @@ function parseYamlScalar(value) {
   return value;
 }
 
-export function extractCharacterDictionary(yaml) {
+export function extractCharacterDictionary(yaml, options = {}) {
   const lines = yaml.split(/\r?\n/);
   const start = lines.findIndex((line) => /^  character_dict:\s*$/.test(line));
   if (start < 0) return [];
@@ -17,5 +17,6 @@ export function extractCharacterDictionary(yaml) {
     const match = /^  - (.*)$/.exec(line);
     if (match) characters.push(parseYamlScalar(match[1]));
   }
-  return characters.filter((character) => character.length > 0);
+  const dictionary = characters.filter((character) => character.length > 0);
+  return options.useSpaceChar ? [...dictionary, " "] : dictionary;
 }

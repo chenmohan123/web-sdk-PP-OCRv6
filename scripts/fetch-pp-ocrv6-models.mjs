@@ -86,7 +86,7 @@ for (const asset of source.assets) {
 
   const yml = await readFile(path.join(metadataDir, "inference.yml"), "utf8");
   if (asset.role === "rec") {
-    const characters = extractCharacterDictionary(yml);
+    const characters = extractCharacterDictionary(yml, { useSpaceChar: true });
     if (characters.length === 0) throw new Error(`No character_dict found in ${asset.id} inference.yml.`);
     const dictionaryPath = path.join(modelRoot, "dictionaries", `${asset.id}.txt`);
     await mkdir(path.dirname(dictionaryPath), { recursive: true });
