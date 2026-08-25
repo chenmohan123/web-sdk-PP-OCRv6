@@ -3,6 +3,7 @@ import { Cpu, Github, ImagePlus, Languages, Play, RotateCcw, Square, Trash2, Upl
 import { clearAllModelCache, clearModelCache, createOCR, type Backend, type ExecutionMode, type OCRResult } from "web-sdk-pp-ocrv6";
 import { en } from "./i18n/en";
 import { zhCN } from "./i18n/zh-CN";
+import { ImageViewport } from "./ImageViewport";
 
 type Status = "idle" | "loading" | "running" | "success" | "error" | "unsupported";
 type Mode = "ocr" | "detection" | "recognition";
@@ -29,7 +30,7 @@ const fixtureResult = (): OCRResult => ({
 
 export function App() {
   const [language, setLanguage] = useState<"zh" | "en">("zh");
-  const copy = (language === "zh" ? zhCN : en) as Record<string, string>;
+  const copy = language === "zh" ? zhCN : en;
   const [mode, setMode] = useState<Mode>("ocr");
   const [detPreset, setDetPreset] = useState<Preset>("small");
   const [recPreset, setRecPreset] = useState<Preset>("small");
@@ -42,38 +43,14 @@ export function App() {
   const [error, setError] = useState<{ code: string; message: string }>();
   const [source, setSource] = useState<Blob>();
   const [imageUrl, setImageUrl] = useState<string>();
-  const [imageReady, setImageReady] = useState(false);
   const [result, setResult] = useState<OCRResult>();
   const [selected, setSelected] = useState<number>();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageRef = useRef<HTMLImageElement | null>(null);
   const abortRef = useRef<AbortController | undefined>(undefined);
   const ocrRef = useRef<ReturnType<typeof createOCR> | undefined>(undefined);
   const detStats = modelStats.det[detPreset];
   const recStats = modelStats.rec[recPreset];
 
   useEffect(() => () => { if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); void ocrRef.current?.dispose(); }, [imageUrl]);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const image = imageRef.current;
-    if (!canvas || !image || !imageReady || image.naturalWidth === 0) return;
-    canvas.width = image.naturalWidth;
-    canvas.height = image.naturalHeight;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(image, 0, 0);
-    for (const line of result?.lines ?? []) {
-      context.beginPath();
-      line.polygon.forEach((point, index) => index === 0 ? context.moveTo(point.x, point.y) : context.lineTo(point.x, point.y));
-      context.closePath();
-      context.lineWidth = line.index === selected ? 8 : 4;
-      context.strokeStyle = line.index === selected ? "#f59e0b" : "#16a34a";
-      context.fillStyle = line.index === selected ? "rgba(245, 158, 11, .18)" : "rgba(22, 163, 74, .1)";
-      context.fill(); context.stroke();
-    }
-  }, [result, selected, imageUrl, imageReady]);
-
   const timingRows = useMemo(() => [
     [copy.total, result?.timings.totalMs], [copy.cold, result ? result.timings.modelDownloadMs + result.timings.integrityMs + result.timings.sessionMs : undefined],
     [copy.preprocess, result?.timings.preprocessMs], [copy.inference, result?.timings.inferenceMs], [copy.postprocess, result?.timings.postprocessMs],
@@ -81,7 +58,7 @@ export function App() {
 
   const setImage = (blob: Blob, url?: string) => {
     if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl);
-    setSource(blob); setImageReady(false); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined);
+    setSource(blob); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined);
   };
   const useSample = async () => { const response = await fetch("./samples/ocr-fixture.png"); setImage(await response.blob(), "./samples/ocr-fixture.png"); };
   const run = async () => {
@@ -99,12 +76,7 @@ export function App() {
       const value = caught as { code?: string; message?: string }; setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) }); setStatus(value.code === "CAPABILITY_UNSUPPORTED" ? "unsupported" : "error");
     }
   };
-  const reset = () => { abortRef.current?.abort(); setSource(undefined); setImageReady(false); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined); };
-  const canvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = event.currentTarget; const bounds = canvas.getBoundingClientRect(); const x = (event.clientX - bounds.left) * canvas.width / bounds.width; const y = (event.clientY - bounds.top) * canvas.height / bounds.height;
-    const found = result?.lines.find((line) => { const xs = line.polygon.map((point) => point.x); const ys = line.polygon.map((point) => point.y); return x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys); });
-    if (found) setSelected(found.index);
-  };
+  const reset = () => { abortRef.current?.abort(); setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setError(undefined); };
   const clearCache = async (all: boolean) => { await (all ? clearAllModelCache() : clearModelCache()); setNotice(copy.cacheDone ?? ""); };
   const statusText = status === "loading" ? copy.loading : status === "running" ? copy.running : status === "success" ? copy.success : status === "error" ? copy.error : status === "unsupported" ? copy.unsupported : copy.ready;
 
@@ -123,7 +95,7 @@ export function App() {
         <div className="file-actions"><label className="button secondary"><Upload size={16}/>{source ? copy.replace : copy.choose}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) setImage(file); }}/></label><button className="secondary" onClick={() => void useSample()}><ImagePlus size={16}/>{copy.sample}</button></div>
         <div className="run-actions"><button className="primary" disabled={!source || status === "loading" || status === "running"} onClick={() => void run()}><Play size={17}/>{copy.start}</button><button className="icon-button" title={copy.abort} onClick={() => abortRef.current?.abort()}><Square size={16}/></button><button className="icon-button" title={copy.reset} onClick={reset}><RotateCcw size={17}/></button></div>
       </aside>
-      <section className="image-panel panel" data-testid="image-panel"><div className="panel-title"><ImagePlus size={17}/><h2>{copy.preview}</h2>{result && <span className="count">{result.lines.length}</span>}</div><div className="canvas-stage">{imageUrl ? <><img ref={imageRef} data-testid="source-image" src={imageUrl} alt={copy.imageAlt} onLoad={() => setImageReady(true)}/><canvas ref={canvasRef} data-testid="result-canvas" onClick={canvasClick}/></> : <div className="empty"><ImagePlus size={34}/><p>{copy.empty}</p></div>}</div><p className="mobile-hint">{copy.mobileHint}</p></section>
+      <section className="image-panel panel" data-testid="image-panel"><div className="panel-title"><ImagePlus size={17}/><h2>{copy.preview}</h2>{result && <span className="count">{result.lines.length}</span>}</div><div className="canvas-stage"><ImageViewport imageUrl={imageUrl} imageAlt={copy.imageAlt} emptyText={copy.empty} lines={result?.lines ?? []} selected={selected} onSelect={setSelected} copy={copy}/></div><p className="mobile-hint">{copy.mobileHint}</p></section>
       <aside className="details panel" data-testid="details-panel">
         <section data-sdk-model-info><div className="panel-title"><Zap size={17}/><h2>{copy.modelInfo}</h2></div><dl><div><dt>{copy.model} DET</dt><dd>PP-OCRv6 {detPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(detStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{detStats[1].toLocaleString()}</dd></div><div><dt>{copy.model} REC</dt><dd>PP-OCRv6 {recPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(recStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{recStats[1].toLocaleString()}</dd></div></dl></section>
         <section data-sdk-runtime-info><h2>{copy.runtimeInfo}</h2><dl><div><dt>{copy.requested}</dt><dd>{backend}</dd></div><div><dt>{copy.actual}</dt><dd>{result?.runtime.actualBackend ?? "-"}</dd></div><div><dt>{copy.execution}</dt><dd>{execution}</dd></div><div><dt>{copy.runtime}</dt><dd>{result?.runtime.runtimeVersion ?? "onnxruntime-web@1.27.0"}</dd></div></dl></section>
