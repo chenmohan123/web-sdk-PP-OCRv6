@@ -5,6 +5,7 @@ import type { WorkerRequest, WorkerResponse } from "./runtime/protocol";
 
 const scope = globalThis as unknown as DedicatedWorkerGlobalScope;
 let session: OrtSessionHandle | undefined;
+let progressRequestId: string | undefined;
 let queue = Promise.resolve();
 const cancelled = new Set<string>();
 
@@ -22,15 +23,26 @@ const handle = async (event: MessageEvent<WorkerRequest>) => {
     if (request.type === "cancel") { cancelled.add(request.requestId); return; }
     if (request.type === "load") {
       await session?.dispose();
-      session = await createOrtSession({ ort: ort as never, backend: request.backend, model: request.model, onProgress: (progress) => send(progress.progress === undefined
-        ? { type: "progress", requestId: request.requestId, phase: progress.phase }
-        : { type: "progress", requestId: request.requestId, phase: progress.phase, progress: progress.progress }) });
-      send({ type: "result", requestId: request.requestId, result: { backend: session.backend, sessionMs: session.sessionMs } });
+      progressRequestId = request.requestId;
+      try {
+        session = await createOrtSession({ ort: ort as never, backend: request.backend, model: request.model, onProgress: (progress) => send(progress.progress === undefined
+          ? { type: "progress", requestId: progressRequestId ?? request.requestId, phase: progress.phase }
+          : { type: "progress", requestId: progressRequestId ?? request.requestId, phase: progress.phase, progress: progress.progress }) });
+        send({ type: "result", requestId: request.requestId, result: { backend: session.backend, sessionMs: session.sessionMs } });
+      } finally {
+        progressRequestId = undefined;
+      }
       return;
     }
     if (request.type === "run") {
       if (!session) throw new PPOCRv6Error("SESSION_CREATE_FAILED", "Worker session is not loaded");
-      const output = await session.run({ [request.inputName]: new ort.Tensor("float32", new Float32Array(request.input), request.dims) });
+      progressRequestId = request.requestId;
+      let output: Record<string, unknown>;
+      try {
+        output = await session.run({ [request.inputName]: new ort.Tensor("float32", new Float32Array(request.input), request.dims) });
+      } finally {
+        progressRequestId = undefined;
+      }
       if (cancelled.delete(request.requestId)) return;
       const result = Object.fromEntries(Object.entries(output).flatMap(([name, value]) => value instanceof ort.Tensor
         ? [[name, { type: value.type, data: value.data.buffer as ArrayBuffer, dims: value.dims }]]

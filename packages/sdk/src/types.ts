@@ -1,12 +1,21 @@
 export type Backend = "wasm" | "webgpu" | "auto";
 export type ExecutionMode = "worker" | "main";
 export type ModelPreset = "medium" | "small" | "tiny";
+export type OCRProgressPhase = "manifest" | "cache" | "download" | "integrity" | "load" | "inference";
+export type OCRProgressComponent = "det" | "rec";
+export interface OCRProgress {
+  readonly phase: OCRProgressPhase;
+  readonly component?: OCRProgressComponent;
+  readonly progress?: number;
+  readonly loadedBytes?: number;
+  readonly totalBytes?: number;
+}
 export interface ModelManifest { readonly id: string; readonly version: string; readonly components?: readonly string[]; readonly [key: string]: unknown; }
 export type CustomModel = { readonly manifest: ModelManifest } | { readonly manifestUrl: string };
 export type ModelVariant = ModelPreset | CustomModel;
 export interface ModelSelection { readonly det?: ModelVariant; readonly rec?: ModelVariant; }
 export type ModelSource = ModelSelection;
-export interface RuntimeOptions { readonly backend?: Backend; readonly execution?: ExecutionMode; readonly allowFallback?: boolean; readonly model?: ModelSelection; readonly signal?: AbortSignal; }
+export interface RuntimeOptions { readonly backend?: Backend; readonly execution?: ExecutionMode; readonly allowFallback?: boolean; readonly model?: ModelSelection; readonly signal?: AbortSignal; readonly onProgress?: (event: OCRProgress) => void; }
 export interface RunOptions { readonly signal?: AbortSignal; }
 export interface Detector { readonly kind: "detector"; load(): Promise<void>; detect(input: unknown, options?: RunOptions): Promise<DetectionResult>; dispose(): Promise<void>; }
 export interface Recognizer { readonly kind: "recognizer"; load(): Promise<void>; recognize(input: unknown, options?: RunOptions): Promise<RecognitionResult>; dispose(): Promise<void>; }

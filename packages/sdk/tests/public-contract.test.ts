@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_MANIFEST_URL } from "../src/factory";
-import type { CustomModel, DetectionResult, ModelSelection, RuntimeInfo } from "../src/types";
+import type { CustomModel, DetectionResult, ModelSelection, OCRProgress, RuntimeInfo, RuntimeOptions } from "../src/types";
 
 const customManifest: CustomModel = { manifest: { id: "custom-ocr", version: "1.0.0" } };
 const customManifestUrl: CustomModel = { manifestUrl: "https://example.test/custom-ocr.yaml" };
@@ -26,6 +26,12 @@ const result: DetectionResult = {
 };
 
 describe("public runtime result contract", () => {
+  it("accepts a public progress callback", () => {
+    const events: OCRProgress[] = [];
+    const options: RuntimeOptions = { onProgress: (event) => events.push(event) };
+    options.onProgress?.({ phase: "download", progress: 0.25, loadedBytes: 1, totalBytes: 4 });
+    expect(events).toHaveLength(1);
+  });
   // @ts-expect-error RuntimeInfo must report the ONNX Runtime Web version.
   const incompleteRuntime: RuntimeInfo = { requestedBackend: "wasm", actualBackend: "wasm", execution: "main" };
 
