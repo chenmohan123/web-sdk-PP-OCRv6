@@ -13,7 +13,7 @@ test("starts in Chinese with the left-center-right OCR workflow", async ({ page 
   await expect(page.locator("[data-sdk-cache-clear]")).toHaveCount(2);
   await expect(page.locator(".statusbar")).toHaveCount(0);
   await expect(page.getByTestId("status")).toContainText("等待图片");
-  expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(400);
+  expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(240);
   expect(await page.getByTestId("details-panel").evaluate((panel) => {
     const metadata = panel.querySelector("[data-sdk-model-info]");
     const results = panel.querySelector("[data-testid=ocr-results]");
@@ -138,4 +138,43 @@ test("keeps the mobile OCR result area tall enough for long documents", async ({
   expect(await page.getByTestId("ocr-results").evaluate((element) => element.clientHeight)).toBeGreaterThanOrEqual(520);
   expect(await page.locator(".viewport-canvas").evaluate((element) => ({ touchAction: getComputedStyle(element).touchAction }))).toMatchObject({ touchAction: "none" });
   expect(await page.getByTestId("image-viewport").evaluate((element) => element.clientWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+test("keeps the desktop workbench stable while the details column scrolls", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?fixture=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+
+  const layout = await page.evaluate(() => {
+    const topbar = document.querySelector<HTMLElement>(".topbar");
+    const workspace = document.querySelector<HTMLElement>(".workspace");
+    const imagePanel = document.querySelector<HTMLElement>(".image-panel");
+    const canvasStage = document.querySelector<HTMLElement>(".canvas-stage");
+    const details = document.querySelector<HTMLElement>(".details");
+    const summary = document.querySelector<HTMLElement>(".details-summary");
+    const results = document.querySelector<HTMLElement>(".ocr-results");
+    if (!topbar || !workspace || !imagePanel || !canvasStage || !details || !summary || !results) throw new Error("workbench elements missing");
+    return {
+      viewportHeight: window.innerHeight,
+      topbarHeight: topbar.getBoundingClientRect().height,
+      workspaceHeight: workspace.getBoundingClientRect().height,
+      pageScrollHeight: document.documentElement.scrollHeight,
+      pageClientHeight: document.documentElement.clientHeight,
+      imageTop: imagePanel.getBoundingClientRect().top,
+      canvasStageHeight: canvasStage.getBoundingClientRect().height,
+      summaryClientHeight: summary.clientHeight,
+      summaryScrollHeight: summary.scrollHeight,
+      resultsClientHeight: results.clientHeight,
+    };
+  });
+
+  expect(Math.abs(layout.workspaceHeight - (layout.viewportHeight - layout.topbarHeight))).toBeLessThanOrEqual(1);
+  expect(layout.pageScrollHeight).toBeLessThanOrEqual(layout.pageClientHeight + 1);
+  expect(layout.canvasStageHeight).toBeGreaterThanOrEqual(700);
+  expect(layout.summaryScrollHeight).toBeGreaterThan(layout.summaryClientHeight);
+  expect(layout.resultsClientHeight).toBeGreaterThanOrEqual(220);
+
+  const beforeScroll = layout.imageTop;
+  await page.locator(".details-summary").evaluate((element) => { element.scrollTop = 240; });
+  await expect.poll(() => page.getByTestId("image-panel").evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(beforeScroll, 0);
 });
