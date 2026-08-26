@@ -21,6 +21,14 @@ test("starts in Chinese with the left-center-right OCR workflow", async ({ page 
   })).toBe(true);
 });
 
+test("defaults to automatic GPU-first backend selection with CPU fallback", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  const compute = page.getByRole("group", { name: "计算设备" });
+  expect(await compute.getByRole("button").allTextContents()).toEqual(["自动", "CPU", "GPU"]);
+  await expect(compute.getByRole("button", { name: "自动" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("checkbox", { name: "允许自动回退" })).toBeChecked();
+});
+
 test("shows download, loading, running, and completed states in the controls", async ({ page }) => {
   await page.goto("/?fixture=1");
   await page.getByRole("button", { name: "使用示例" }).click();
