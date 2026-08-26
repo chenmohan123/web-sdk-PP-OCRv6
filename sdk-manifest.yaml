@@ -4,7 +4,7 @@ name: PP-OCRv6 Web SDK
 summary: Browser-first PP-OCRv6 OCR SDK with local detection and recognition through ONNX Runtime Web.
 package:
   name: web-sdk-pp-ocrv6
-  version: "0.1.7"
+  version: "0.1.8"
 repository: https://github.com/chenmohan123/web-sdk-PP-OCRv6
 demo:
   url: https://chenmohan123.github.io/web-sdk-PP-OCRv6/

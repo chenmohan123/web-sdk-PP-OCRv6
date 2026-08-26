@@ -6,7 +6,7 @@ const root = resolve(import.meta.dirname, "..");
 const output = execFileSync("npm", ["pack", "--dry-run", "--json"], { cwd: resolve(root, "packages/sdk"), encoding: "utf8", shell: process.platform === "win32" });
 const metadata = JSON.parse(output)[0];
 const files = metadata.files.map((entry) => entry.path);
-for (const required of ["dist/index.js", "dist/index.d.ts", "dist/inference.worker.js", "dist/models/manifest.json"]) if (!files.includes(required)) throw new Error(`Package is missing ${required}`);
+for (const required of ["README.md", "dist/index.js", "dist/index.d.ts", "dist/inference.worker.js", "dist/models/manifest.json"]) if (!files.includes(required)) throw new Error(`Package is missing ${required}`);
 if (!files.some((file) => file.startsWith("dist/models/dictionaries/") && file.endsWith(".txt"))) throw new Error("Package is missing recognition dictionaries");
 if (files.some((file) => file.endsWith(".onnx"))) throw new Error("npm package must not contain ONNX files");
 const packageMetadata = JSON.parse(readFileSync(resolve(root, "packages/sdk/package.json"), "utf8"));
