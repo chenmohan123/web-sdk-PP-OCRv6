@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Cpu, Github, ImagePlus, Languages, Play, RotateCcw, Square, Trash2, Upload, Zap } from "lucide-react";
-import { clearAllModelCache, clearModelCache, createOCR, type Backend, type ExecutionMode, type OCRResult } from "web-sdk-pp-ocrv6";
+import { clearAllModelCache, clearModelCache, createOCR, type Backend, type ExecutionMode, type OCRResult, type RuntimeOptions } from "web-sdk-pp-ocrv6";
 import { en } from "./i18n/en";
 import { zhCN } from "./i18n/zh-CN";
 import { ImageViewport } from "./ImageViewport";
+import { createOCRSessionManager } from "./ocr-session";
 
 type Status = "idle" | "downloading" | "loading" | "running" | "success" | "error" | "unsupported";
 type Mode = "ocr" | "detection" | "recognition";
@@ -35,9 +36,9 @@ export function App() {
   const [mode, setMode] = useState<Mode>("ocr");
   const [detPreset, setDetPreset] = useState<Preset>("small");
   const [recPreset, setRecPreset] = useState<Preset>("small");
-  const [backend, setBackend] = useState<Backend>("wasm");
+  const [backend, setBackend] = useState<Backend>("auto");
   const [execution, setExecution] = useState<ExecutionMode>("worker");
-  const [allowFallback, setAllowFallback] = useState(false);
+  const [allowFallback, setAllowFallback] = useState(true);
   const [manifestUrl, setManifestUrl] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [downloadProgress, setDownloadProgress] = useState<number>();
@@ -48,11 +49,12 @@ export function App() {
   const [result, setResult] = useState<OCRResult>();
   const [selected, setSelected] = useState<number>();
   const abortRef = useRef<AbortController | undefined>(undefined);
-  const ocrRef = useRef<ReturnType<typeof createOCR> | undefined>(undefined);
+  const sessionManagerRef = useRef(createOCRSessionManager(createOCR));
   const detStats = modelStats.det[detPreset];
   const recStats = modelStats.rec[recPreset];
 
-  useEffect(() => () => { if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); void ocrRef.current?.dispose(); }, [imageUrl]);
+  useEffect(() => () => { if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
+  useEffect(() => () => { void sessionManagerRef.current.dispose(); }, []);
   const timingRows = useMemo(() => [
     [copy.total, result?.timings.totalMs], [copy.modelDownload, result?.timings.modelDownloadMs], [copy.modelLoad, result?.timings.sessionMs],
     [copy.preprocess, result?.timings.preprocessMs], [copy.inference, result?.timings.inferenceMs], [copy.postprocess, result?.timings.postprocessMs],
@@ -69,14 +71,14 @@ export function App() {
     const controller = new AbortController(); abortRef.current = controller; setError(undefined); setNotice(""); setDownloadProgress(undefined); setStatus("loading");
     try {
       if (fixtureMode) { setStatus("downloading"); setDownloadProgress(0.25); await new Promise((resolve) => setTimeout(resolve, 150)); setStatus("loading"); await new Promise((resolve) => setTimeout(resolve, 150)); if (fixtureErrorMode) throw { code: "MODEL_DOWNLOAD_FAILED", message: "Failed to fetch" }; setStatus("running"); await new Promise((resolve) => setTimeout(resolve, 150)); const fixture = fixtureResult(); const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } }; setResult(next); setSelected(0); setStatus("success"); return; }
-      await ocrRef.current?.dispose();
       const custom = manifestUrl.trim() ? { manifestUrl: manifestUrl.trim() } : undefined;
-      const ocr = createOCR({ backend, execution, allowFallback, model: { det: custom ?? detPreset, rec: custom ?? recPreset }, signal: controller.signal, onProgress: (event) => {
+      const options: RuntimeOptions = { backend, execution, allowFallback, model: { det: custom ?? detPreset, rec: custom ?? recPreset }, signal: controller.signal, onProgress: (event) => {
         if (event.phase === "download") { setStatus("downloading"); setDownloadProgress(event.progress); }
         else if (event.phase === "inference") setStatus("running");
         else setStatus("loading");
-      } });
-      ocrRef.current = ocr; await ocr.load(); setStatus("running"); const next = await ocr.ocr(source, { signal: controller.signal }); setResult(next); setSelected(next.lines[0]?.index); setStatus("success");
+      } };
+      const configKey = JSON.stringify({ manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
+      const { ocr } = await sessionManagerRef.current.ensure(configKey, options); setStatus("running"); const next = await ocr.ocr(source, { signal: controller.signal }); setResult(next); setSelected(next.lines[0]?.index); setStatus("success");
     } catch (caught) {
       if (controller.signal.aborted) { setStatus("idle"); setDownloadProgress(undefined); return; }
       const value = caught as { code?: string; message?: string }; setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) }); setStatus(value.code === "CAPABILITY_UNSUPPORTED" ? "unsupported" : "error");
@@ -93,7 +95,7 @@ export function App() {
         <fieldset><legend>{copy.mode}</legend><div className="segmented three">{(["ocr", "detection", "recognition"] as const).map((value) => <button key={value} className={mode === value ? "active" : ""} aria-pressed={mode === value} onClick={() => setMode(value)}>{copy[value]}</button>)}</div></fieldset>
         <label>{copy.detModel}<select value={detPreset} onChange={(event) => setDetPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
         <label>{copy.recModel}<select value={recPreset} onChange={(event) => setRecPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
-        <fieldset><legend>{copy.backend}</legend><div className="segmented">{(["wasm", "webgpu", "auto"] as const).map((value) => <button key={value} className={backend === value ? "active" : ""} aria-pressed={backend === value} onClick={() => setBackend(value)}>{value === "wasm" ? copy.cpu : value === "webgpu" ? copy.gpu : copy.automatic}</button>)}</div></fieldset>
+        <fieldset><legend>{copy.backend}</legend><div className="segmented">{(["auto", "wasm", "webgpu"] as const).map((value) => <button key={value} className={backend === value ? "active" : ""} aria-pressed={backend === value} onClick={() => setBackend(value)}>{value === "wasm" ? copy.cpu : value === "webgpu" ? copy.gpu : copy.automatic}</button>)}</div></fieldset>
         <fieldset><legend>{copy.execution}</legend><div className="segmented two">{(["worker", "main"] as const).map((value) => <button key={value} className={execution === value ? "active" : ""} aria-pressed={execution === value} onClick={() => setExecution(value)}>{copy[value]}</button>)}</div></fieldset>
         <label className="check"><input type="checkbox" checked={allowFallback} onChange={(event) => setAllowFallback(event.target.checked)}/><span>{copy.fallback}</span></label>
         <label>{copy.custom}<input type="url" value={manifestUrl} placeholder="https://cdn.example/manifest.json" onChange={(event) => setManifestUrl(event.target.value)}/></label>
