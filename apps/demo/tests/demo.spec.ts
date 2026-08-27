@@ -1,5 +1,95 @@
 import { expect, test } from "playwright/test";
 
+test("模型来源默认沿用 SDK 并映射 Hugging Face manifest", async ({ page }) => {
+  await page.goto("/?fixture=1");
+
+  await expect(page.getByLabel("模型来源", { exact: true })).toHaveValue("default");
+  await expect(page.getByLabel("模型来源").locator("option")).toHaveCount(3);
+  await expect(page.getByRole("option", { name: "Hugging Face" })).toBeEnabled();
+  await expect(page.getByRole("option", { name: /ModelScope/ })).toBeEnabled();
+  await expect(page.getByText("模型清单", { exact: true })).toBeVisible();
+
+  const contract = await page.evaluate(async (moduleUrl) => {
+    const module = (await import(moduleUrl)) as typeof import("../src/model-sources");
+    return {
+      keys: module.MODEL_SOURCE_OPTIONS.map((option) => option.key),
+      defaultModel: module.selectionToModel("default"),
+      huggingFaceModel: module.selectionToModel("huggingface"),
+      modelScopeModel: module.selectionToModel("modelscope"),
+      available: module.MODEL_SOURCE_OPTIONS.map((option) => ({ key: option.key, available: option.available, disabledReason: option.disabledReason, manifestUrl: option.manifestUrl })),
+      defaultRuntimeModel: module.runtimeModelForSelection("default", "small", "small", ""),
+      presetRuntimeModel: module.runtimeModelForSelection("default", "medium", "tiny", ""),
+      huggingFaceRuntimeModel: module.runtimeModelForSelection(
+        "huggingface",
+        "small",
+        "small",
+        "",
+      ),
+    };
+  }, "/src/model-sources.ts");
+
+  expect(contract.keys).toEqual(["default", "huggingface", "modelscope"]);
+  expect(contract.defaultModel).toBeUndefined();
+  expect(contract.huggingFaceModel).toEqual({
+    manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json"
+  });
+  expect(contract.defaultRuntimeModel).toBeUndefined();
+  expect(contract.presetRuntimeModel).toEqual({ det: "medium", rec: "tiny" });
+  expect(contract.huggingFaceRuntimeModel).toEqual({
+    det: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json" },
+    rec: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json" },
+  });
+  expect(contract.modelScopeModel).toEqual({
+    manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/v1.0.0/1.0.0/manifest.json"
+  });
+  expect(contract.available).toEqual([
+    { key: "default", available: true, manifestUrl: undefined },
+    { key: "huggingface", available: true, disabledReason: undefined, manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json" },
+    { key: "modelscope", available: true, disabledReason: undefined, manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/v1.0.0/1.0.0/manifest.json" }
+  ]);
+});
+
+test("切换模型来源会清空旧结果和自定义 manifest", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  await page.getByLabel("检测模型").selectOption("medium");
+  await page.getByLabel("识别模型").selectOption("medium");
+  await page.getByLabel("自定义 manifest 地址").fill("https://example.com/custom.json");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  await page.getByRole("button", { name: "开始识别" }).click();
+  await expect(page.getByTestId("status")).toContainText("识别完成");
+  await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("4");
+
+  await page.getByLabel("模型来源").selectOption("huggingface");
+
+  await expect(page.getByLabel("自定义 manifest 地址")).toHaveValue("");
+  await expect(page.getByTestId("status")).toContainText("等待图片");
+  await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("0");
+  await expect(page.getByTestId("model-source-value")).toHaveText("Hugging Face");
+  await expect(page.getByTestId("model-source-manifest")).toHaveText(
+    "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json",
+  );
+  await expect(page.getByLabel("检测模型")).toHaveValue("small");
+  await expect(page.getByLabel("识别模型")).toHaveValue("small");
+  await expect(page.getByLabel("检测模型")).toBeDisabled();
+  await expect(page.getByLabel("识别模型")).toBeDisabled();
+});
+
+test("运行中切换模型来源不会回写已取消的结果", async ({ page }) => {
+  await page.goto("/?fixture=1");
+  await page.getByRole("button", { name: "使用示例" }).click();
+  await page.getByRole("button", { name: "开始识别" }).click();
+  await expect(page.getByTestId("status")).toContainText("模型下载中");
+
+  await page.getByLabel("模型来源").selectOption("huggingface");
+  await expect(page.getByLabel("模型来源")).toBeDisabled();
+  await expect(page.getByTestId("status")).toContainText("等待图片");
+  await expect(page.getByLabel("模型来源")).toBeEnabled();
+  await page.waitForTimeout(700);
+
+  await expect(page.getByTestId("status")).toContainText("等待图片");
+  await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("0");
+});
+
 test("starts in Chinese with the left-center-right OCR workflow", async ({ page }) => {
   await page.goto("/?fixture=1");
   await expect(page.getByRole("heading", { name: "PP-OCRv6" })).toBeVisible();
