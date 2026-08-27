@@ -4,6 +4,12 @@ import { clearAllModelCache, clearModelCache, createOCR, type Backend, type Exec
 import { en } from "./i18n/en";
 import { zhCN } from "./i18n/zh-CN";
 import { ImageViewport } from "./ImageViewport";
+import {
+  DEFAULT_MODEL_SOURCE,
+  MODEL_SOURCE_OPTIONS,
+  runtimeModelForSelection,
+  type ModelSourceKey,
+} from "./model-sources";
 import { createOCRSessionManager } from "./ocr-session";
 
 type Status = "idle" | "downloading" | "loading" | "running" | "success" | "error" | "unsupported";
@@ -36,6 +42,8 @@ export function App() {
   const [mode, setMode] = useState<Mode>("ocr");
   const [detPreset, setDetPreset] = useState<Preset>("small");
   const [recPreset, setRecPreset] = useState<Preset>("small");
+  const [modelSource, setModelSource] = useState<ModelSourceKey>(DEFAULT_MODEL_SOURCE);
+  const [modelSourceChanging, setModelSourceChanging] = useState(false);
   const [backend, setBackend] = useState<Backend>("auto");
   const [execution, setExecution] = useState<ExecutionMode>("worker");
   const [allowFallback, setAllowFallback] = useState(true);
@@ -49,9 +57,11 @@ export function App() {
   const [result, setResult] = useState<OCRResult>();
   const [selected, setSelected] = useState<number>();
   const abortRef = useRef<AbortController | undefined>(undefined);
+  const activeRunRef = useRef<Promise<void> | undefined>(undefined);
   const sessionManagerRef = useRef(createOCRSessionManager(createOCR));
   const detStats = modelStats.det[detPreset];
   const recStats = modelStats.rec[recPreset];
+  const activeModelSource = MODEL_SOURCE_OPTIONS.find((option) => option.key === modelSource) ?? MODEL_SOURCE_OPTIONS[0]!;
 
   useEffect(() => () => { if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
   useEffect(() => () => { void sessionManagerRef.current.dispose(); }, []);
@@ -64,25 +74,81 @@ export function App() {
     if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl);
     setSource(blob); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined);
   };
+  const selectModelSource = async (next: ModelSourceKey): Promise<void> => {
+    setModelSourceChanging(true);
+    abortRef.current?.abort();
+    abortRef.current = undefined;
+    try {
+      await activeRunRef.current;
+      await sessionManagerRef.current.dispose();
+    } catch (caught) {
+      const value = caught as { code?: string; message?: string };
+      setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) });
+      setStatus("error");
+      setModelSourceChanging(false);
+      return;
+    }
+    setModelSource(next);
+    if (next !== DEFAULT_MODEL_SOURCE) {
+      setDetPreset("small");
+      setRecPreset("small");
+    }
+    setManifestUrl("");
+    setResult(undefined);
+    setSelected(undefined);
+    setStatus("idle");
+    setDownloadProgress(undefined);
+    setNotice("");
+    setError(undefined);
+    setModelSourceChanging(false);
+  };
   const useSample = async () => { const response = await fetch("./samples/ocr-fixture.png"); setImage(await response.blob(), "./samples/ocr-fixture.png"); };
   const run = async () => {
     if (!source) return;
     abortRef.current?.abort();
     const controller = new AbortController(); abortRef.current = controller; setError(undefined); setNotice(""); setDownloadProgress(undefined); setStatus("loading");
     try {
-      if (fixtureMode) { setStatus("downloading"); setDownloadProgress(0.25); await new Promise((resolve) => setTimeout(resolve, 150)); setStatus("loading"); await new Promise((resolve) => setTimeout(resolve, 150)); if (fixtureErrorMode) throw { code: "MODEL_DOWNLOAD_FAILED", message: "Failed to fetch" }; setStatus("running"); await new Promise((resolve) => setTimeout(resolve, 150)); const fixture = fixtureResult(); const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } }; setResult(next); setSelected(0); setStatus("success"); return; }
-      const custom = manifestUrl.trim() ? { manifestUrl: manifestUrl.trim() } : undefined;
-      const options: RuntimeOptions = { backend, execution, allowFallback, model: { det: custom ?? detPreset, rec: custom ?? recPreset }, signal: controller.signal, onProgress: (event) => {
+      if (fixtureMode) {
+        const waitForFixtureStage = async () => {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+          if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        };
+        setStatus("downloading");
+        setDownloadProgress(0.25);
+        await waitForFixtureStage();
+        setStatus("loading");
+        await waitForFixtureStage();
+        if (fixtureErrorMode) throw { code: "MODEL_DOWNLOAD_FAILED", message: "Failed to fetch" };
+        setStatus("running");
+        await waitForFixtureStage();
+        const fixture = fixtureResult();
+        const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } };
+        setResult(next);
+        setSelected(0);
+        setStatus("success");
+        return;
+      }
+      const model = runtimeModelForSelection(modelSource, detPreset, recPreset, manifestUrl);
+      const options: RuntimeOptions = { backend, execution, allowFallback, ...(model === undefined ? {} : { model }), signal: controller.signal, onProgress: (event) => {
         if (event.phase === "download") { setStatus("downloading"); setDownloadProgress(event.progress); }
         else if (event.phase === "inference") setStatus("running");
         else setStatus("loading");
       } };
-      const configKey = JSON.stringify({ manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
+      const configKey = JSON.stringify({ source: modelSource, manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
       const { ocr } = await sessionManagerRef.current.ensure(configKey, options); setStatus("running"); const next = await ocr.ocr(source, { signal: controller.signal }); setResult(next); setSelected(next.lines[0]?.index); setStatus("success");
     } catch (caught) {
       if (controller.signal.aborted) { setStatus("idle"); setDownloadProgress(undefined); return; }
       const value = caught as { code?: string; message?: string }; setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) }); setStatus(value.code === "CAPABILITY_UNSUPPORTED" ? "unsupported" : "error");
+    } finally {
+      if (abortRef.current === controller) abortRef.current = undefined;
     }
+  };
+  const startRun = (): void => {
+    const task = run();
+    activeRunRef.current = task;
+    void task.finally(() => {
+      if (activeRunRef.current === task) activeRunRef.current = undefined;
+    });
   };
   const reset = () => { abortRef.current?.abort(); setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined); };
   const clearCache = async (all: boolean) => { await (all ? clearAllModelCache() : clearModelCache()); setNotice(copy.cacheDone ?? ""); };
@@ -93,20 +159,21 @@ export function App() {
     <section className="workspace">
       <aside className="controls panel" data-testid="controls-panel"><div className="panel-title"><Cpu size={17}/><h2>{copy.controls}</h2></div>
         <fieldset><legend>{copy.mode}</legend><div className="segmented three">{(["ocr", "detection", "recognition"] as const).map((value) => <button key={value} className={mode === value ? "active" : ""} aria-pressed={mode === value} onClick={() => setMode(value)}>{copy[value]}</button>)}</div></fieldset>
-        <label>{copy.detModel}<select value={detPreset} onChange={(event) => setDetPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
-        <label>{copy.recModel}<select value={recPreset} onChange={(event) => setRecPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
+        <div className="model-source-control"><label htmlFor="model-source">{copy.modelRepository}</label><select id="model-source" aria-describedby="model-source-limitations" value={modelSource} disabled={modelSourceChanging} onChange={(event) => void selectModelSource(event.target.value as ModelSourceKey)}>{MODEL_SOURCE_OPTIONS.map((option) => <option key={option.key} value={option.key} disabled={!option.available} title={option.disabledReason?.[language]}>{option.label[language]}{option.available ? "" : ` (${copy.unavailable})`}</option>)}</select><small id="model-source-limitations" className="model-source-limitations" data-testid="model-source-limitations">{MODEL_SOURCE_OPTIONS.filter((option) => !option.available).map((option) => `${option.label[language]}: ${option.disabledReason?.[language] ?? copy.unavailable}`).join(" ")}</small></div>
+        <label>{copy.detModel}<select value={detPreset} disabled={modelSource !== DEFAULT_MODEL_SOURCE} onChange={(event) => setDetPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
+        <label>{copy.recModel}<select value={recPreset} disabled={modelSource !== DEFAULT_MODEL_SOURCE} onChange={(event) => setRecPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
         <fieldset><legend>{copy.backend}</legend><div className="segmented">{(["auto", "wasm", "webgpu"] as const).map((value) => <button key={value} className={backend === value ? "active" : ""} aria-pressed={backend === value} onClick={() => setBackend(value)}>{value === "wasm" ? copy.cpu : value === "webgpu" ? copy.gpu : copy.automatic}</button>)}</div></fieldset>
         <fieldset><legend>{copy.execution}</legend><div className="segmented two">{(["worker", "main"] as const).map((value) => <button key={value} className={execution === value ? "active" : ""} aria-pressed={execution === value} onClick={() => setExecution(value)}>{copy[value]}</button>)}</div></fieldset>
         <label className="check"><input type="checkbox" checked={allowFallback} onChange={(event) => setAllowFallback(event.target.checked)}/><span>{copy.fallback}</span></label>
         <label>{copy.custom}<input type="url" value={manifestUrl} placeholder="https://cdn.example/manifest.json" onChange={(event) => setManifestUrl(event.target.value)}/></label>
         <div className="file-actions"><label className="button secondary"><Upload size={16}/>{source ? copy.replace : copy.choose}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { const file = event.target.files?.[0]; if (file) setImage(file); }}/></label><button className="secondary" onClick={() => void useSample()}><ImagePlus size={16}/>{copy.sample}</button></div>
-        <div className="run-actions"><button className="primary" disabled={!source || status === "loading" || status === "downloading" || status === "running"} onClick={() => void run()}><Play size={17}/>{copy.start}</button><button className="icon-button" title={copy.abort} onClick={() => abortRef.current?.abort()}><Square size={16}/></button><button className="icon-button" title={copy.reset} onClick={reset}><RotateCcw size={17}/></button></div>
+        <div className="run-actions"><button className="primary" disabled={!source || modelSourceChanging || status === "loading" || status === "downloading" || status === "running"} onClick={startRun}><Play size={17}/>{copy.start}</button><button className="icon-button" title={copy.abort} onClick={() => abortRef.current?.abort()}><Square size={16}/></button><button className="icon-button" title={copy.reset} onClick={reset}><RotateCcw size={17}/></button></div>
         <div className={`run-status ${status}`} data-testid="status" aria-live="polite"><div className="run-status-line"><span className={`status-dot ${status}`}/><strong>{statusText}</strong>{status === "downloading" && downloadProgress !== undefined && <span className="download-percent">{Math.round(downloadProgress * 100)}%</span>}</div>{status === "downloading" && downloadProgress !== undefined && <div className="download-track" data-testid="download-progress" role="progressbar" aria-label={copy.downloading} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(downloadProgress * 100)}><span style={{ width: `${Math.round(downloadProgress * 100)}%` }}/></div>}{error && <span className="error-text">{copy.errorCode}: {error.code} · {error.message}</span>}</div>
       </aside>
       <section className="image-panel panel" data-testid="image-panel"><div className="panel-title"><ImagePlus size={17}/><h2>{copy.preview}</h2>{result && <span className="count">{result.lines.length}</span>}</div><div className="canvas-stage"><ImageViewport imageUrl={imageUrl} imageAlt={copy.imageAlt} emptyText={copy.empty} lines={result?.lines ?? []} selected={selected} onSelect={setSelected} copy={copy}/></div><p className="mobile-hint">{copy.mobileHint}</p></section>
       <aside className="details panel" data-testid="details-panel">
         <div className="details-summary">
-          <section data-sdk-model-info><div className="panel-title"><Zap size={17}/><h2>{copy.modelInfo}</h2></div><dl><div><dt>{copy.model} DET</dt><dd>PP-OCRv6 {detPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(detStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{detStats[1].toLocaleString()}</dd></div><div><dt>{copy.model} REC</dt><dd>PP-OCRv6 {recPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(recStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{recStats[1].toLocaleString()}</dd></div></dl></section>
+          <section data-sdk-model-info><div className="panel-title"><Zap size={17}/><h2>{copy.modelInfo}</h2></div><dl><div><dt>{copy.modelRepository}</dt><dd data-testid="model-source-value">{manifestUrl.trim() ? copy.customSource : activeModelSource.label[language]}</dd></div><div><dt>{copy.manifest}</dt><dd className="model-source-manifest" data-testid="model-source-manifest">{manifestUrl.trim() || activeModelSource.manifestUrl || copy.sdkDefaultManifest}</dd></div><div><dt>{copy.model} DET</dt><dd>PP-OCRv6 {detPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(detStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{detStats[1].toLocaleString()}</dd></div><div><dt>{copy.model} REC</dt><dd>PP-OCRv6 {recPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(recStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{recStats[1].toLocaleString()}</dd></div></dl></section>
           <section data-sdk-runtime-info><h2>{copy.runtimeInfo}</h2><dl><div><dt>{copy.requested}</dt><dd>{backend}</dd></div><div><dt>{copy.actual}</dt><dd>{result?.runtime.actualBackend ?? "-"}</dd></div><div><dt>{copy.execution}</dt><dd>{execution}</dd></div><div><dt>{copy.runtime}</dt><dd>{result?.runtime.runtimeVersion ?? "onnxruntime-web@1.27.0"}</dd></div></dl></section>
           <section data-sdk-timing><h2>{copy.timing}</h2><dl>{timingRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}<div className="timing-secondary"><dt>{copy.cacheRead}</dt><dd>{fmtMs(result?.timings.modelCacheReadMs)}</dd></div><div className="timing-secondary"><dt>{copy.integrity}</dt><dd>{fmtMs(result?.timings.integrityMs)}</dd></div><div><dt>CPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "wasm" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div><div><dt>GPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "webgpu" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div></dl></section>
           <section className="cache-actions"><button data-sdk-cache-clear onClick={() => void clearCache(false)}><Trash2 size={15}/>{copy.cacheCurrent}</button><button data-sdk-cache-clear onClick={() => void clearCache(true)}><Trash2 size={15}/>{copy.cacheAll}</button>{notice && <span className="cache-notice" aria-live="polite">{notice}</span>}</section>
