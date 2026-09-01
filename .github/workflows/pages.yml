@@ -17,6 +17,8 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
       - uses: pnpm/action-setup@v4
         with: { version: 11 }
       - uses: actions/setup-node@v4

@@ -7,7 +7,7 @@ import * as ort from "onnxruntime-web";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
-const modelRoot = path.join(repoRoot, "models", "pp-ocrv6", "1.0.0");
+const modelRoot = path.join(repoRoot, "models", "pp-ocrv6");
 const manifestPath = path.join(modelRoot, "manifest.json");
 
 function readVarint(bytes, state) {

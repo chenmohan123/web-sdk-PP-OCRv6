@@ -27,13 +27,13 @@ export const MODEL_SOURCE_OPTIONS: readonly ModelSourceOption[] = [
     available: true,
     key: "huggingface",
     label: { en: "Hugging Face", zh: "Hugging Face" },
-    manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json"
+    manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0"
   },
   {
     available: true,
     key: "modelscope",
     label: { en: "ModelScope", zh: "ModelScope" },
-    manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/v1.0.0/1.0.0/manifest.json"
+    manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0"
   }
 ] as const;
 

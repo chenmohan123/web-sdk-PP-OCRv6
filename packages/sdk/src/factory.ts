@@ -13,7 +13,7 @@ import { createProgressReporter, safeEmitProgress, type ProgressReporter } from 
 import { selectExecutionPlan } from "./runtime/select-plan";
 import type { CustomModel, Detector, ModelInfo, ModelPreset, ModelVariant, OCRPipeline, Recognizer, RuntimeInfo, RuntimeOptions } from "./types";
 
-export const DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/chenmohan123/web-sdk-PP-OCRv6/main/models/pp-ocrv6/1.0.0/manifest.json";
+export const DEFAULT_MANIFEST_URL = "https://chenmohan123.github.io/web-sdk-PP-OCRv6/models/pp-ocrv6/manifest.json?v=1.0.0";
 const DEFAULT_VERSION = "1.0.0";
 const defaultCache = createIndexedDBCache();
 

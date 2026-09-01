@@ -31,21 +31,21 @@ test("模型来源默认沿用 SDK 并映射 Hugging Face manifest", async ({ pa
   expect(contract.keys).toEqual(["default", "huggingface", "modelscope"]);
   expect(contract.defaultModel).toBeUndefined();
   expect(contract.huggingFaceModel).toEqual({
-    manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json"
+    manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0"
   });
   expect(contract.defaultRuntimeModel).toBeUndefined();
   expect(contract.presetRuntimeModel).toEqual({ det: "medium", rec: "tiny" });
   expect(contract.huggingFaceRuntimeModel).toEqual({
-    det: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json" },
-    rec: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json" },
+    det: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" },
+    rec: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" },
   });
   expect(contract.modelScopeModel).toEqual({
-    manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/v1.0.0/1.0.0/manifest.json"
+    manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0"
   });
   expect(contract.available).toEqual([
     { key: "default", available: true, manifestUrl: undefined },
-    { key: "huggingface", available: true, disabledReason: undefined, manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json" },
-    { key: "modelscope", available: true, disabledReason: undefined, manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/v1.0.0/1.0.0/manifest.json" }
+    { key: "huggingface", available: true, disabledReason: undefined, manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" },
+    { key: "modelscope", available: true, disabledReason: undefined, manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0" }
   ]);
 });
 
@@ -66,7 +66,7 @@ test("切换模型来源会清空旧结果和自定义 manifest", async ({ page 
   await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("0");
   await expect(page.getByTestId("model-source-value")).toHaveText("Hugging Face");
   await expect(page.getByTestId("model-source-manifest")).toHaveText(
-    "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/9286e2c113f4ad1980d39efc3838f8bfb83b2173/1.0.0/manifest.json",
+    "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0",
   );
   await expect(page.getByLabel("检测模型")).toHaveValue("small");
   await expect(page.getByLabel("识别模型")).toHaveValue("small");
