@@ -13,6 +13,8 @@ test("CI, Pages, and release workflows use least privilege and immutable tags", 
   assert.match(pages, /pages: write/);
   assert.match(pages, /id-token: write/);
   assert.match(pages, /concurrency:/);
+  assert.match(pages, /mkdir -p apps\/demo\/dist\/models\/pp-ocrv6/);
+  assert.match(pages, /cp -R models\/pp-ocrv6\/. apps\/demo\/dist\/models\/pp-ocrv6\//);
   assert.match(release, /tags:\s*\n\s+- "v\*"/);
   assert.match(release, /npm publish --access public --provenance/);
   assert.match(release, /gh release create/);

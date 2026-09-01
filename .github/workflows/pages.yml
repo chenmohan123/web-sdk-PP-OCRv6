@@ -26,6 +26,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter web-sdk-pp-ocrv6 build
       - run: pnpm --filter @ppocrv6/demo build -- --base=/web-sdk-PP-OCRv6/
+      - name: 复制当前模型资产
+        run: |
+          mkdir -p apps/demo/dist/models/pp-ocrv6
+          cp -R models/pp-ocrv6/. apps/demo/dist/models/pp-ocrv6/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: apps/demo/dist }
