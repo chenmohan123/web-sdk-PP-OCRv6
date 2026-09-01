@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 const root = new URL("../", import.meta.url);
-const modelRoot = new URL("models/pp-ocrv6/1.0.0/", root);
+const modelRoot = new URL("models/pp-ocrv6/", root);
 const requiredIds = [
   "PP-OCRv6_medium_det",
   "PP-OCRv6_small_det",
@@ -49,9 +49,8 @@ test("runtime manifest pins all official PP-OCRv6 assets", async () => {
     assert.ok(Number.isInteger(asset.bytes) && asset.bytes > 0, `${asset.id} bytes`);
     assert.match(asset.sha256, sha256, `${asset.id} sha256`);
     assert.equal(asset.precision, "fp32", `${asset.id} precision`);
-    assert.match(asset.url, /^https:\/\//, `${asset.id} URL`);
-    assert.match(asset.url, /^https:\/\/huggingface\.co\/PaddlePaddle\/PP-OCRv6_.+_onnx\/resolve\/[a-f0-9]{40}\/inference\.onnx$/, `${asset.id} CORS model URL`);
-    assert.match(asset.huggingFace.url, /^https:\/\//, `${asset.id} HF URL`);
+    assert.equal(asset.url, asset.file, `${asset.id} root model URL`);
+    assert.match(asset.huggingFace.url, /^https:\/\//, `${asset.id} upstream HF URL`);
     assert.match(asset.huggingFace.revision, revisionSha, `${asset.id} HF revision`);
     assert.match(asset.upstream.revision, revisionSha, `${asset.id} upstream revision`);
     assert.match(asset.huggingFace.url, new RegExp(`/resolve/${asset.huggingFace.revision}/`), `${asset.id} immutable HF URL`);

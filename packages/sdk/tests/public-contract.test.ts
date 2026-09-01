@@ -43,6 +43,8 @@ describe("public runtime result contract", () => {
   });
 
   it("loads the default manifest from a browser CORS-compatible origin", () => {
-    expect(DEFAULT_MANIFEST_URL).toMatch(/^https:\/\/raw\.githubusercontent\.com\/chenmohan123\/web-sdk-PP-OCRv6\/main\/models\/pp-ocrv6\/1\.0\.0\/manifest\.json$/);
+    expect(DEFAULT_MANIFEST_URL).toBe(
+      "https://chenmohan123.github.io/web-sdk-PP-OCRv6/models/pp-ocrv6/manifest.json?v=1.0.0",
+    );
   });
 });

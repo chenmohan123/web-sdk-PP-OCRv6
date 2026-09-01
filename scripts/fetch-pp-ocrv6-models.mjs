@@ -7,7 +7,7 @@ import { extractCharacterDictionary } from "./pp-ocrv6-dictionary.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, "..");
-const modelRoot = path.join(repoRoot, "models", "pp-ocrv6", "1.0.0");
+const modelRoot = path.join(repoRoot, "models", "pp-ocrv6");
 const sourcePath = path.join(modelRoot, "model-source.json");
 const manifestPath = path.join(modelRoot, "manifest.json");
 const requiredFiles = ["inference.onnx", "inference.json", "inference.yml"];

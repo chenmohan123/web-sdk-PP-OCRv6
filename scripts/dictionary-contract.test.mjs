@@ -6,7 +6,7 @@ import test from "node:test";
 import { extractCharacterDictionary } from "./pp-ocrv6-dictionary.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const modelRoot = path.join(repoRoot, "models", "pp-ocrv6", "1.0.0");
+const modelRoot = path.join(repoRoot, "models", "pp-ocrv6");
 
 async function readDictionary(kind) {
   const file = path.join(modelRoot, "dictionaries", `PP-OCRv6_${kind}_rec.txt`);

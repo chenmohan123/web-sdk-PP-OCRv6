@@ -76,5 +76,5 @@ jobs:
           gh release upload "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --clobber \
-            models/pp-ocrv6/1.0.0/*.onnx \
-            models/pp-ocrv6/1.0.0/manifest.json
+            models/pp-ocrv6/*.onnx \
+            models/pp-ocrv6/manifest.json
