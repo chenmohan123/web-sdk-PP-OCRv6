@@ -1,11 +1,13 @@
-import { createOCR } from "web-sdk-pp-ocrv6";
-
+import { createExampleRunner } from "./runner";
 const input = document.querySelector<HTMLInputElement>("#image")!;
+const source = document.querySelector<HTMLSelectElement>("#source")!;
+const run = document.querySelector<HTMLButtonElement>("#run")!;
 const output = document.querySelector<HTMLPreElement>("#output")!;
-document.querySelector("#run")!.addEventListener("click", async () => {
-  const file = input.files?.[0];
-  if (!file) return;
-  const ocr = createOCR({ model: { det: "small", rec: "small" }, backend: "wasm", execution: "worker", allowFallback: false });
-  try { output.textContent = JSON.stringify(await ocr.ocr(file), null, 2); }
-  finally { await ocr.dispose(); }
+const runner = createExampleRunner(({ busy, message }) => {
+  run.disabled = busy; input.disabled = busy; source.disabled = busy;
+  output.textContent = message;
 });
+run.addEventListener("click", () => { const file = input.files?.[0]; if (file) void runner.run(file, source.value as "modelscope" | "huggingface"); });
+document.querySelector("#cancel")!.addEventListener("click", () => runner.cancel());
+window.addEventListener("pagehide", () => { void runner.dispose(); }, { once: true });
+if (import.meta.hot) import.meta.hot.dispose(() => { void runner.dispose(); });

@@ -1,0 +1,19 @@
+{
+  "name": "pp-ocrv6-example-vanilla",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "web-sdk-pp-ocrv6": "0.1.8",
+    "onnxruntime-web": "1.27.0"
+  },
+  "devDependencies": {
+    "vite": "7.3.6",
+    "typescript": "5.9.3",
+    "@types/node": "24.0.0"
+  }
+}

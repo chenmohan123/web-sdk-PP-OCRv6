@@ -1,0 +1,56 @@
+import * as ort from "onnxruntime-web";
+import { createOCR, type OCRPipeline } from "web-sdk-pp-ocrv6";
+
+export const modelSources = {
+  modelscope: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0",
+  huggingface: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0",
+} as const;
+export type ExampleState = { busy: boolean; message: string };
+
+export function createExampleRunner(render: (state: ExampleState) => void) {
+  let closed = false;
+  let busy = false;
+  let active: OCRPipeline | undefined;
+  let controller: AbortController | undefined;
+  let task: Promise<void> | undefined;
+  const update = (message: string) => { if (!closed) render({ busy, message }); };
+  return {
+    run(file: Blob, source: keyof typeof modelSources = "modelscope"): Promise<void> {
+      if (closed || busy) return Promise.resolve();
+      busy = true;
+      controller = new AbortController();
+      const signal = controller.signal;
+      task = (async () => {
+        let message = "已取消";
+        try {
+          update("正在下载并初始化模型");
+          const selection = { manifestUrl: modelSources[source], preset: "tiny" as const };
+          ort.env.wasm.wasmPaths = new URL("./ort/", location.href).href;
+          const ocr = createOCR({ model: { det: selection, rec: selection }, backend: "wasm", execution: "main", allowFallback: false });
+          active = ocr;
+          // 0.1.8 的 ocr 会顺序初始化 DET/REC，避免并行 load 提前失败。
+          const result = await ocr.ocr(file, { signal });
+          message = JSON.stringify(result, null, 2);
+        } catch (error) {
+          const value = error as { code?: string; message?: string };
+          message = signal.aborted ? "已取消" : `${value.code ?? "OCR_FAILED"}: ${value.message ?? String(error)}`;
+        } finally {
+          try { await active?.dispose(); }
+          catch (error) { message = `释放失败: ${String(error)}`; }
+          active = undefined;
+          busy = false;
+          if (!signal.aborted) update(message);
+          else update("已取消");
+        }
+      })();
+      return task;
+    },
+    cancel() { controller?.abort(); },
+    async dispose() {
+      closed = true;
+      controller?.abort();
+      // 0.1.8 不能在初始化结束前 dispose；由任务 finally 回收迟到会话。
+      await task;
+    },
+  };
+}

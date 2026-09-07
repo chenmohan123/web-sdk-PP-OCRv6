@@ -1,1 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width"><title>PP-OCRv6 Vanilla</title></head><body><h1>PP-OCRv6 Vanilla</h1><input id="image" type="file" accept="image/*"><button id="run">OCR</button><pre id="output"></pre><script type="module" src="./main.ts"></script></body></html>
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PP-OCRv6 vanilla</title></head>
+<body><main><h1>PP-OCRv6 vanilla</h1><p>图片在当前设备处理。首次运行会下载 tiny 模型。</p>
+<label>模型来源 <select id="source"><option value="modelscope">ModelScope</option><option value="huggingface">Hugging Face</option></select></label>
+<label>图片 <input id="image" type="file" accept="image/*"></label><button id="run">开始识别</button><button id="cancel">取消</button><pre id="output" aria-live="polite">请选择图片</pre></main><script type="module" src="./main.ts"></script></body></html>

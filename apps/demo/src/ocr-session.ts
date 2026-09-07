@@ -4,31 +4,46 @@ type OCRFactory = (options: RuntimeOptions, mode: "ocr" | "detection" | "recogni
 
 export function createOCRSessionManager(factory: OCRFactory) {
   let current: { key: string; ocr: OCRPipeline } | undefined;
+  let tail = Promise.resolve();
+  let generation = 0;
+  const enqueue = <T>(action: () => Promise<T>): Promise<T> => {
+    const pending = tail.then(action);
+    tail = pending.then(() => undefined, () => undefined);
+    return pending;
+  };
 
   return {
-    async ensure(key: string, options: RuntimeOptions, mode: "ocr" | "detection" | "recognition" = "ocr"): Promise<{ ocr: OCRPipeline; reused: boolean }> {
+    ensure(key: string, options: RuntimeOptions, mode: "ocr" | "detection" | "recognition" = "ocr"): Promise<{ ocr: OCRPipeline; reused: boolean }> {
+      const started = generation;
+      return enqueue(async () => {
       if (current?.key === key) return { ocr: current.ocr, reused: true };
 
       if (current) {
-        await current.ocr.dispose();
+        const previous = current;
         current = undefined;
+        await previous.ocr.dispose();
       }
 
       const ocr = factory(options, mode);
       try {
         await ocr.load();
+        if (generation !== started) throw new DOMException("会话初始化已取消", "AbortError");
       } catch (error) {
         await ocr.dispose();
         throw error;
       }
       current = { key, ocr };
       return { ocr, reused: false };
+      });
     },
 
-    async dispose(): Promise<void> {
-      const active = current;
-      current = undefined;
-      await active?.ocr.dispose();
+    dispose(): Promise<void> {
+      generation += 1;
+      return enqueue(async () => {
+        const active = current;
+        current = undefined;
+        await active?.ocr.dispose();
+      });
     },
   };
 }
