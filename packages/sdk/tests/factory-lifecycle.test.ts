@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPublicDetector, createPublicOCR, createPublicRecognizer, clearEveryModelCache } from "../src/factory";
+import { createPublicDetector, createPublicOCR, createPublicRecognizer, clearEveryModelCache, clearCurrentModelCache, getModelCacheUsage, resolveModelCacheIdentity } from "../src/factory";
 import { PPOCRv6Error } from "../src/errors";
 import { createInferenceExecutor, type InferenceExecutor } from "../src/runtime/executor";
 import type { ModelManifest, RuntimeOptions } from "../src/types";
@@ -35,6 +35,36 @@ beforeEach(() => {
 afterEach(async () => { await clearEveryModelCache(); vi.unstubAllGlobals(); });
 
 describe("公开工厂的初始化资源生命周期", () => {
+  it("自定义 manifest 尚在解析时清理，也禁止后续模型下载写回", async () => {
+    const manifest = (options().model!.det as { manifest: ModelManifest }).manifest;
+    const started = deferred<void>(); const response = deferred<Response>();
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      if (String(url).endsWith("manifest.json")) { started.resolve(); return response.promise; }
+      return new Response(modelBytes);
+    });
+    vi.mocked(createInferenceExecutor).mockResolvedValue(executor());
+    const detector = createPublicDetector({ backend: "wasm", execution: "main", model: { det: { manifestUrl: "https://models.test/manifest.json" } } });
+    const loading = detector.load();
+    await started.promise;
+    await clearCurrentModelCache("lifecycle", "1.0.0");
+    response.resolve(Response.json(manifest));
+    await loading;
+    expect(await getModelCacheUsage()).toMatchObject({ usage: 0 });
+    await detector.dispose();
+  });
+  it("自定义身份解析和公开容量 API 按实际 modelId/version 隔离", async () => {
+    const configuration = options();
+    expect(await resolveModelCacheIdentity(configuration.model!.det)).toEqual({ modelId: "lifecycle", version: "1.0.0" });
+    vi.mocked(createInferenceExecutor).mockResolvedValue(executor());
+    const detector = createPublicDetector(configuration);
+    await detector.load();
+    expect(await getModelCacheUsage("lifecycle", "1.0.0")).toMatchObject({ usage: 3 });
+    await clearCurrentModelCache();
+    expect(await getModelCacheUsage()).toMatchObject({ usage: 3 });
+    await clearCurrentModelCache("lifecycle", "1.0.0");
+    expect(await getModelCacheUsage()).toMatchObject({ usage: 0 });
+    await detector.dispose();
+  });
   it("识别字典下载失败后释放已创建的执行器", async () => {
     const handle = executor();
     vi.mocked(createInferenceExecutor).mockResolvedValue(handle);

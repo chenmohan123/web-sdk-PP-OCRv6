@@ -75,11 +75,12 @@ async function loadDictionary(asset: RuntimeManifestAsset, manifestUrl: string |
 const modelInfo = (manifest: RuntimeManifest, asset: RuntimeManifestAsset, preset: ModelPreset, manifestUrl?: string): ModelInfo => ({ id: manifest.modelId, version: manifest.version, preset, ...(manifestUrl === undefined ? {} : { manifestUrl }), component: asset.id, bytes: asset.bytes, ...(typeof asset.parameterCount === "number" ? { parameterCount: asset.parameterCount } : {}) });
 
 async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: ProgressReporter): Promise<{ asset: RuntimeManifestAsset; model: ModelInfo; runtime: RuntimeInfo; loaded: Awaited<ReturnType<ReturnType<typeof createModelManager>["load"]>>; executor: InferenceExecutor; manifestUrl?: string }> {
+  const writeCache = defaultCache.createWriter?.();
   const selection = options.model?.[role];
   const resolved = await resolveAsset(role, selection, options.signal, (event) => reporter.emit(role, event));
   reporter.register(role, resolved.asset.bytes);
   const plan = selectExecutionPlan(options, probeCapabilities());
-  const loaded = await createModelManager({ cache: defaultCache, onProgress: (event) => reporter.emit(role, event), onSource: (source) => reporter.markSource(role, source) }).load({ modelId: resolved.manifest.modelId, version: resolved.manifest.version, variant: resolved.asset.id, bytes: resolved.asset.bytes, sha256: resolved.asset.sha256, url: resolved.asset.url }, options.signal);
+  const loaded = await createModelManager({ cache: defaultCache, ...(writeCache === undefined ? {} : { writeCache }), onProgress: (event) => reporter.emit(role, event), onSource: (source) => reporter.markSource(role, source) }).load({ modelId: resolved.manifest.modelId, version: resolved.manifest.version, variant: resolved.asset.id, bytes: resolved.asset.bytes, sha256: resolved.asset.sha256, url: resolved.asset.url }, options.signal);
   let executor: InferenceExecutor | undefined;
   let actualBackend = plan.candidates[0]!;
   let lastError: unknown;
@@ -205,3 +206,12 @@ export function createPublicOCR(options: RuntimeOptions = {}): OCRPipeline {
 
 export async function clearCurrentModelCache(modelId = "pp-ocrv6", version = DEFAULT_VERSION): Promise<void> { await defaultCache.clearCurrent(modelId, version); }
 export async function clearEveryModelCache(): Promise<void> { await defaultCache.clearAll(); }
+
+/** 返回本 SDK 实际缓存的模型字节；不包含同源其他应用的存储。 */
+export async function getModelCacheUsage(modelId?: string, version?: string): Promise<{ readonly usage?: number; readonly quota?: number }> { return await defaultCache.estimate?.(modelId, version) ?? {}; }
+
+/** 按当前选项解析模型身份，不下载模型、不创建会话。 */
+export async function resolveModelCacheIdentity(selection?: ModelVariant, signal?: AbortSignal): Promise<{ modelId: string; version: string }> {
+  const { manifest } = await resolveManifest(selection, signal);
+  return { modelId: manifest.modelId, version: manifest.version };
+}

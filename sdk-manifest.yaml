@@ -45,10 +45,10 @@ cache:
   clearAll: true
   estimate: true
 examples:
-  vanilla: { status: runnable, path: examples/vanilla }
-  react: { status: runnable, path: examples/react }
-  vite: { status: runnable, path: examples/vite }
-  cdn: { status: runnable, path: examples/cdn }
-  wechatWebView: { status: runnable, path: examples/wechat-web-view }
+  vanilla: { status: available, path: examples/vanilla }
+  react: { status: available, path: examples/react }
+  vite: { status: available, path: examples/vite }
+  cdn: { status: available, path: examples/cdn }
+  wechatWebView: { status: available, path: examples/wechat-web-view }
 verification:
   environments: []

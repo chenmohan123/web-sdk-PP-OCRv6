@@ -1,5 +1,6 @@
 export { createPublicDetector as createDetector, createPublicRecognizer as createRecognizer, createPublicOCR as createOCR, clearCurrentModelCache as clearModelCache, clearEveryModelCache as clearAllModelCache, DEFAULT_MANIFEST_URL } from "./factory";
 export { PPOCRv6Error } from "./errors";
+export { getModelCacheUsage, resolveModelCacheIdentity } from "./factory";
 export { ERROR_CODES } from "./errors";
 export type { ErrorCode, ErrorDetails, JSONValue } from "./errors";
 export type * from "./types";
@@ -15,7 +16,7 @@ export { createModelManager } from "./model/model-manager";
 export type { ModelLoadRequest, ModelLoadResult, ModelManager } from "./model/model-manager";
 export { createMemoryCache } from "./cache/memory-cache";
 export { createIndexedDBCache } from "./cache/indexeddb-cache";
-export type { ModelCache, ModelCacheIdentity } from "./cache/model-cache";
+export type { ModelCache, ModelCacheIdentity, CacheWriter } from "./cache/model-cache";
 export { createOCRPipeline } from "./pipeline/ocr";
 export { createProgressReporter, safeEmitProgress } from "./progress";
 export type { ProgressCallback, ProgressReporter, ProgressSource } from "./progress";
