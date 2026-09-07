@@ -6,6 +6,9 @@ const customManifest: CustomModel = { manifest: { id: "custom-ocr", version: "1.
 const customManifestUrl: CustomModel = { manifestUrl: "https://example.test/custom-ocr.yaml" };
 const presetSelection: ModelSelection = { det: "small", rec: "tiny" };
 const customSelection: ModelSelection = { det: customManifest, rec: customManifestUrl };
+const resourcePaths: RuntimeOptions = { wasmPaths: { mjs: "https://cdn.test/ort.mjs", wasm: "https://cdn.test/ort.wasm" } };
+// @ts-expect-error ORT 1.27 的对象路径使用 mjs/wasm 键，不能按运行时文件名映射。
+const invalidResourcePaths: RuntimeOptions = { wasmPaths: { "ort-wasm-simd-threaded.wasm": "https://cdn.test/ort.wasm" } };
 
 const result: DetectionResult = {
   detections: [],
@@ -27,6 +30,8 @@ const result: DetectionResult = {
 
 describe("public runtime result contract", () => {
   it("accepts a public progress callback", () => {
+    expect(resourcePaths.wasmPaths).toBeDefined();
+    expect(invalidResourcePaths).toBeDefined();
     const events: OCRProgress[] = [];
     const options: RuntimeOptions = { onProgress: (event) => events.push(event) };
     options.onProgress?.({ phase: "download", progress: 0.25, loadedBytes: 1, totalBytes: 4 });

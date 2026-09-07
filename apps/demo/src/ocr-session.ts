@@ -1,12 +1,12 @@
 import type { OCRPipeline, RuntimeOptions } from "web-sdk-pp-ocrv6";
 
-type OCRFactory = (options: RuntimeOptions) => OCRPipeline;
+type OCRFactory = (options: RuntimeOptions, mode: "ocr" | "detection" | "recognition") => OCRPipeline;
 
 export function createOCRSessionManager(factory: OCRFactory) {
   let current: { key: string; ocr: OCRPipeline } | undefined;
 
   return {
-    async ensure(key: string, options: RuntimeOptions): Promise<{ ocr: OCRPipeline; reused: boolean }> {
+    async ensure(key: string, options: RuntimeOptions, mode: "ocr" | "detection" | "recognition" = "ocr"): Promise<{ ocr: OCRPipeline; reused: boolean }> {
       if (current?.key === key) return { ocr: current.ocr, reused: true };
 
       if (current) {
@@ -14,7 +14,7 @@ export function createOCRSessionManager(factory: OCRFactory) {
         current = undefined;
       }
 
-      const ocr = factory(options);
+      const ocr = factory(options, mode);
       try {
         await ocr.load();
       } catch (error) {

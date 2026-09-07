@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Hand, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { FileImage, Hand, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import type { OCRResult } from "web-sdk-pp-ocrv6";
 import { clampOffset, fitScale, type ImageSize, type Offset, type ViewportSize, zoomAroundPoint } from "./viewportGeometry";
 import { overlayStrokeWidth } from "./overlayStroke";
@@ -49,7 +49,7 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
   const [dragging, setDragging] = useState(false);
 
   const getPoint = useCallback((clientX: number, clientY: number): Point => {
-    const rect = viewportRef.current?.getBoundingClientRect();
+    const rect = viewportCanvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     return { x: clientX - (rect.left + rect.width / 2), y: clientY - (rect.top + rect.height / 2) };
   }, []);
@@ -147,7 +147,7 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
     }
   };
 
-  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!imageSize || dragMovedRef.current) {
       dragMovedRef.current = false;
       return;
@@ -164,7 +164,7 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
   };
 
   useLayoutEffect(() => {
-    const viewport = viewportRef.current;
+    const viewport = viewportCanvasRef.current;
     if (!viewport) return;
     const update = () => setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight });
     update();
@@ -255,20 +255,20 @@ export function ImageViewport({ imageUrl, imageAlt, emptyText, lines, selected, 
     onPointerMove={handlePointerMove}
     onPointerUp={handlePointerEnd}
     onPointerCancel={handlePointerEnd}
+    onClick={(event) => { if (!(event.target instanceof Element && event.target.closest(".viewport-toolbar"))) handleCanvasClick(event); }}
   >
     <div className="viewport-toolbar" onPointerDown={(event) => event.stopPropagation()}>
       <button type="button" title={copy.zoomOut} aria-label={copy.zoomOut} onClick={() => applyZoom(scale / 1.2, { x: 0, y: 0 })} disabled={!imageSize}><ZoomOut size={15} /></button>
       <span className="zoom-percent" data-testid="zoom-percent" aria-live="polite">{Math.round(scale * 100)}%</span>
       <button type="button" title={copy.zoomIn} aria-label={copy.zoomIn} onClick={() => applyZoom(scale * 1.2, { x: 0, y: 0 })} disabled={!imageSize}><ZoomIn size={15} /></button>
-      <button type="button" className="fit-button" title={copy.fitView} aria-label={copy.fitView} onClick={fitView} disabled={!imageSize}><Maximize2 size={15} />{copy.fitView}</button>
-      <button type="button" className={panMode ? "active" : ""} title={copy.pan} aria-label={copy.pan} aria-pressed={panMode} onClick={() => setPanMode((current) => !current)} disabled={!imageSize}><Hand size={15} />{copy.pan}</button>
-      <span className="pan-hint">{copy.panHint}</span>
+      <button type="button" className="fit-button" title={copy.fitView} aria-label={copy.fitView} onClick={fitView} disabled={!imageSize}><Maximize2 size={15} /></button>
+      <button type="button" className={panMode ? "active" : ""} title={copy.pan} aria-label={copy.pan} aria-pressed={panMode} onClick={() => setPanMode((current) => !current)} disabled={!imageSize}><Hand size={15} /></button>
     </div>
     <div ref={viewportCanvasRef} className="viewport-canvas">
       {imageUrl ? <>
         <img ref={imageRef} data-testid="source-image" className="image-source" src={imageUrl} alt={imageAlt} onLoad={(event) => { const image = event.currentTarget; setImageSize({ width: image.naturalWidth, height: image.naturalHeight }); setImageReady(true); }} />
-        <canvas ref={canvasRef} data-testid="result-canvas" className="result-canvas" style={transform ? { width: imageSize?.width, height: imageSize?.height, transform } : undefined} onClick={handleCanvasClick} />
-      </> : <div className="empty"><span aria-hidden="true">+</span><p>{emptyText}</p></div>}
+        <canvas ref={canvasRef} data-testid="result-canvas" className="result-canvas" style={transform ? { width: imageSize?.width, height: imageSize?.height, transform } : undefined} />
+      </> : <div className="empty"><FileImage size={36} strokeWidth={1.25} aria-hidden="true"/><p>{emptyText}</p></div>}
     </div>
   </div>;
 }

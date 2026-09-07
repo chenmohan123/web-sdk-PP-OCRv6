@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Cpu, Github, ImagePlus, Languages, Play, RotateCcw, Square, Trash2, Upload, Zap } from "lucide-react";
-import { clearAllModelCache, clearModelCache, createOCR, type Backend, type ExecutionMode, type OCRResult, type RuntimeOptions } from "web-sdk-pp-ocrv6";
+import { Cpu, Github, ImagePlus, Languages, Play, RotateCcw, ShieldCheck, Square, Trash2, Upload, Zap } from "lucide-react";
+import { clearAllModelCache, clearModelCache, type Backend, type ExecutionMode, type OCRResult, type RuntimeOptions } from "web-sdk-pp-ocrv6";
 import { en } from "./i18n/en";
 import { zhCN } from "./i18n/zh-CN";
 import { ImageViewport } from "./ImageViewport";
@@ -11,12 +11,13 @@ import {
   type ModelSourceKey,
 } from "./model-sources";
 import { createOCRSessionManager } from "./ocr-session";
+import { createDemoPipeline, type Mode } from "./demo-pipeline";
 
 type Status = "idle" | "downloading" | "loading" | "running" | "success" | "error" | "unsupported";
-type Mode = "ocr" | "detection" | "recognition";
 type Preset = "medium" | "small" | "tiny";
 const fixtureMode = new URLSearchParams(location.search).has("fixture");
 const fixtureErrorMode = new URLSearchParams(location.search).has("fixture-error");
+const ortWasmBaseUrl = new URL(`${import.meta.env.BASE_URL}ort/`, location.href).href;
 const modelStats = {
   det: { medium: [62032837, 15486640], small: [9880512, 2453368], tiny: [1780590, 428420] },
   rec: { medium: [76554979, 19115263], small: [21159378, 5267732], tiny: [4462639, 1104524] },
@@ -55,29 +56,33 @@ export function App() {
   const [source, setSource] = useState<Blob>();
   const [imageUrl, setImageUrl] = useState<string>();
   const [result, setResult] = useState<OCRResult>();
+  const [resultMode, setResultMode] = useState<Mode>("ocr");
   const [selected, setSelected] = useState<number>();
   const abortRef = useRef<AbortController | undefined>(undefined);
+  const imageRequestRef = useRef(0);
   const activeRunRef = useRef<Promise<void> | undefined>(undefined);
-  const sessionManagerRef = useRef(createOCRSessionManager(createOCR));
+  const sessionManagerRef = useRef(createOCRSessionManager(createDemoPipeline));
   const detStats = modelStats.det[detPreset];
   const recStats = modelStats.rec[recPreset];
   const activeModelSource = MODEL_SOURCE_OPTIONS.find((option) => option.key === modelSource) ?? MODEL_SOURCE_OPTIONS[0]!;
 
   useEffect(() => () => { if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); }, [imageUrl]);
-  useEffect(() => () => { void sessionManagerRef.current.dispose(); }, []);
+  useEffect(() => () => { imageRequestRef.current += 1; abortRef.current?.abort(); void Promise.resolve(activeRunRef.current).then(() => sessionManagerRef.current.dispose()); }, []);
   const timingRows = useMemo(() => [
     [copy.total, result?.timings.totalMs], [copy.modelDownload, result?.timings.modelDownloadMs], [copy.modelLoad, result?.timings.sessionMs],
     [copy.preprocess, result?.timings.preprocessMs], [copy.inference, result?.timings.inferenceMs], [copy.postprocess, result?.timings.postprocessMs],
   ] as const, [copy, result]);
 
   const setImage = (blob: Blob, url?: string) => {
+    imageRequestRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = undefined;
     if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl);
     setSource(blob); setImageUrl(url ?? URL.createObjectURL(blob)); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined);
   };
   const selectModelSource = async (next: ModelSourceKey): Promise<void> => {
     setModelSourceChanging(true);
     abortRef.current?.abort();
-    abortRef.current = undefined;
     try {
       await activeRunRef.current;
       await sessionManagerRef.current.dispose();
@@ -89,10 +94,6 @@ export function App() {
       return;
     }
     setModelSource(next);
-    if (next !== DEFAULT_MODEL_SOURCE) {
-      setDetPreset("small");
-      setRecPreset("small");
-    }
     setManifestUrl("");
     setResult(undefined);
     setSelected(undefined);
@@ -102,16 +103,34 @@ export function App() {
     setError(undefined);
     setModelSourceChanging(false);
   };
-  const useSample = async () => { const response = await fetch("./samples/ocr-fixture.png"); setImage(await response.blob(), "./samples/ocr-fixture.png"); };
+  const useSample = async () => {
+    const request = ++imageRequestRef.current;
+    try {
+      const response = await fetch("./samples/ocr-fixture.png");
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      if (request !== imageRequestRef.current) return;
+      setImage(blob, "./samples/ocr-fixture.png");
+    } catch (caught) {
+      if (request !== imageRequestRef.current) return;
+      setError({ code: "IMAGE_LOAD_FAILED", message: caught instanceof Error ? caught.message : String(caught) });
+      setStatus("error");
+    }
+  };
   const run = async () => {
     if (!source) return;
     abortRef.current?.abort();
     const controller = new AbortController(); abortRef.current = controller; setError(undefined); setNotice(""); setDownloadProgress(undefined); setStatus("loading");
+    const checkActive = () => {
+      if (controller.signal.aborted || abortRef.current !== controller) throw new DOMException("已取消", "AbortError");
+    };
     try {
+      await activeRunRef.current;
+      checkActive();
       if (fixtureMode) {
         const waitForFixtureStage = async () => {
           await new Promise((resolve) => setTimeout(resolve, 150));
-          if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+          checkActive();
         };
         setStatus("downloading");
         setDownloadProgress(0.25);
@@ -124,19 +143,27 @@ export function App() {
         const fixture = fixtureResult();
         const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } };
         setResult(next);
+        setResultMode(mode);
         setSelected(0);
         setStatus("success");
         return;
       }
       const model = runtimeModelForSelection(modelSource, detPreset, recPreset, manifestUrl);
-      const options: RuntimeOptions = { backend, execution, allowFallback, ...(model === undefined ? {} : { model }), signal: controller.signal, onProgress: (event) => {
+      const options: RuntimeOptions = { backend, execution, allowFallback, wasmPaths: ortWasmBaseUrl, ...(model === undefined ? {} : { model }), signal: controller.signal, onProgress: (event) => {
+        if (controller.signal.aborted || abortRef.current !== controller) return;
         if (event.phase === "download") { setStatus("downloading"); setDownloadProgress(event.progress); }
         else if (event.phase === "inference") setStatus("running");
         else setStatus("loading");
       } };
-      const configKey = JSON.stringify({ source: modelSource, manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
-      const { ocr } = await sessionManagerRef.current.ensure(configKey, options); setStatus("running"); const next = await ocr.ocr(source, { signal: controller.signal }); setResult(next); setSelected(next.lines[0]?.index); setStatus("success");
+      const configKey = JSON.stringify({ mode, source: modelSource, manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
+      const { ocr } = await sessionManagerRef.current.ensure(configKey, options, mode);
+      checkActive();
+      setStatus("running");
+      const next = await ocr.ocr(source, { signal: controller.signal });
+      checkActive();
+      setResult(next); setResultMode(mode); setSelected(next.lines[0]?.index); setStatus("success");
     } catch (caught) {
+      if (abortRef.current !== controller) return;
       if (controller.signal.aborted) { setStatus("idle"); setDownloadProgress(undefined); return; }
       const value = caught as { code?: string; message?: string }; setError({ code: value.code ?? "INFERENCE_FAILED", message: value.message ?? String(caught) }); setStatus(value.code === "CAPABILITY_UNSUPPORTED" ? "unsupported" : "error");
     } finally {
@@ -150,18 +177,21 @@ export function App() {
       if (activeRunRef.current === task) activeRunRef.current = undefined;
     });
   };
-  const reset = () => { abortRef.current?.abort(); setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined); };
-  const clearCache = async (all: boolean) => { await (all ? clearAllModelCache() : clearModelCache()); setNotice(copy.cacheDone ?? ""); };
+  const reset = () => { imageRequestRef.current += 1; abortRef.current?.abort(); abortRef.current = undefined; setSource(undefined); if (imageUrl?.startsWith("blob:")) URL.revokeObjectURL(imageUrl); setImageUrl(undefined); setResult(undefined); setSelected(undefined); setStatus("idle"); setDownloadProgress(undefined); setError(undefined); };
+  const clearCache = async (all: boolean) => {
+    try { await (all ? clearAllModelCache() : clearModelCache()); setNotice(copy.cacheDone ?? ""); }
+    catch (caught) { setError({ code: "CACHE_CLEAR_FAILED", message: caught instanceof Error ? caught.message : String(caught) }); setStatus("error"); }
+  };
   const statusText = status === "downloading" ? copy.downloading : status === "loading" ? copy.loading : status === "running" ? copy.running : status === "success" ? copy.success : status === "error" ? copy.error : status === "unsupported" ? copy.unsupported : copy.ready;
 
   return <main className="app-shell">
-    <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.8</span></p></div></div><div className="header-actions"><span className="privacy">{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer"><Github size={16}/>{copy.github}</a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
+    <header className="topbar"><div className="brand"><div className="mark">OCR</div><div><h1>PP-OCRv6</h1><p>Web SDK <span>v0.1.8</span></p></div></div><div className="header-actions"><span className="privacy"><ShieldCheck size={15}/>{copy.local}</span><a href="https://github.com/chenmohan123/web-sdk-PP-OCRv6" target="_blank" rel="noreferrer" aria-label={copy.github} title={copy.github}><Github size={16}/><span>{copy.github}</span></a><button onClick={() => setLanguage(language === "zh" ? "en" : "zh")}><Languages size={16}/>{copy.language}</button></div></header>
     <section className="workspace">
       <aside className="controls panel" data-testid="controls-panel"><div className="panel-title"><Cpu size={17}/><h2>{copy.controls}</h2></div>
         <fieldset><legend>{copy.mode}</legend><div className="segmented three">{(["ocr", "detection", "recognition"] as const).map((value) => <button key={value} className={mode === value ? "active" : ""} aria-pressed={mode === value} onClick={() => setMode(value)}>{copy[value]}</button>)}</div></fieldset>
         <div className="model-source-control"><label htmlFor="model-source">{copy.modelRepository}</label><select id="model-source" aria-describedby="model-source-limitations" value={modelSource} disabled={modelSourceChanging} onChange={(event) => void selectModelSource(event.target.value as ModelSourceKey)}>{MODEL_SOURCE_OPTIONS.map((option) => <option key={option.key} value={option.key} disabled={!option.available} title={option.disabledReason?.[language]}>{option.label[language]}{option.available ? "" : ` (${copy.unavailable})`}</option>)}</select><small id="model-source-limitations" className="model-source-limitations" data-testid="model-source-limitations">{MODEL_SOURCE_OPTIONS.filter((option) => !option.available).map((option) => `${option.label[language]}: ${option.disabledReason?.[language] ?? copy.unavailable}`).join(" ")}</small></div>
-        <label>{copy.detModel}<select value={detPreset} disabled={modelSource !== DEFAULT_MODEL_SOURCE} onChange={(event) => setDetPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
-        <label>{copy.recModel}<select value={recPreset} disabled={modelSource !== DEFAULT_MODEL_SOURCE} onChange={(event) => setRecPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
+        <label>{copy.detModel}<select value={detPreset} onChange={(event) => setDetPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
+        <label>{copy.recModel}<select value={recPreset} onChange={(event) => setRecPreset(event.target.value as Preset)}><option value="medium">Medium</option><option value="small">Small</option><option value="tiny">Tiny</option></select></label>
         <fieldset><legend>{copy.backend}</legend><div className="segmented">{(["auto", "wasm", "webgpu"] as const).map((value) => <button key={value} className={backend === value ? "active" : ""} aria-pressed={backend === value} onClick={() => setBackend(value)}>{value === "wasm" ? copy.cpu : value === "webgpu" ? copy.gpu : copy.automatic}</button>)}</div></fieldset>
         <fieldset><legend>{copy.execution}</legend><div className="segmented two">{(["worker", "main"] as const).map((value) => <button key={value} className={execution === value ? "active" : ""} aria-pressed={execution === value} onClick={() => setExecution(value)}>{copy[value]}</button>)}</div></fieldset>
         <label className="check"><input type="checkbox" checked={allowFallback} onChange={(event) => setAllowFallback(event.target.checked)}/><span>{copy.fallback}</span></label>
@@ -178,7 +208,7 @@ export function App() {
           <section data-sdk-timing><h2>{copy.timing}</h2><dl>{timingRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}<div className="timing-secondary"><dt>{copy.cacheRead}</dt><dd>{fmtMs(result?.timings.modelCacheReadMs)}</dd></div><div className="timing-secondary"><dt>{copy.integrity}</dt><dd>{fmtMs(result?.timings.integrityMs)}</dd></div><div><dt>CPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "wasm" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div><div><dt>GPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "webgpu" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div></dl></section>
           <section className="cache-actions"><button data-sdk-cache-clear onClick={() => void clearCache(false)}><Trash2 size={15}/>{copy.cacheCurrent}</button><button data-sdk-cache-clear onClick={() => void clearCache(true)}><Trash2 size={15}/>{copy.cacheAll}</button>{notice && <span className="cache-notice" aria-live="polite">{notice}</span>}</section>
         </div>
-        <section className="ocr-results" data-testid="ocr-results"><div className="result-heading"><h2>{copy.results}</h2><span>{result?.lines.length ?? 0}</span></div>{result?.lines.length ? result.lines.map((line, order) => <button key={line.index} data-testid={`ocr-row-${line.index}`} aria-current={selected === line.index ? "true" : undefined} className={selected === line.index ? "ocr-row selected" : "ocr-row"} onClick={() => setSelected(line.index)}><span className="row-index">{String(order + 1).padStart(2, "0")}</span><span><strong>{line.text}</strong><small>{copy.score} {(line.recognitionScore * 100).toFixed(1)}%</small></span></button>) : <p className="no-results">{copy.noResults}</p>}</section>
+        <section className="ocr-results" data-testid="ocr-results"><div className="result-heading"><h2>{resultMode === "detection" ? copy.detection : resultMode === "recognition" ? copy.recognition : copy.results}</h2><span>{result?.lines.length ?? 0}</span></div>{result?.lines.length ? result.lines.map((line, order) => <button key={line.index} data-testid={`ocr-row-${line.index}`} aria-current={selected === line.index ? "true" : undefined} className={selected === line.index ? "ocr-row selected" : "ocr-row"} onClick={() => setSelected(line.index)}><span className="row-index">{String(order + 1).padStart(2, "0")}</span><span><strong>{resultMode === "detection" ? `${copy.line} ${order + 1}` : line.text}</strong><small>{resultMode === "detection" ? copy.detection : copy.score} {((resultMode === "detection" ? line.score : line.recognitionScore) * 100).toFixed(1)}%</small></span></button>) : <p className="no-results">{copy.noResults}</p>}</section>
       </aside>
     </section>
   </main>;

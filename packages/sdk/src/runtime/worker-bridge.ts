@@ -1,6 +1,6 @@
 import { PPOCRv6Error } from "../errors";
 import type { OrtSessionProgress } from "./ort-session";
-import type { Backend } from "../types";
+import type { Backend, RuntimeOptions } from "../types";
 import { transferableBuffers, type WorkerRequest, type WorkerResponse } from "./protocol";
 
 interface WorkerLike extends EventTarget {
@@ -9,7 +9,7 @@ interface WorkerLike extends EventTarget {
 }
 
 export interface WorkerBridge {
-  load(model: ArrayBufferLike, backend?: Exclude<Backend, "auto">): Promise<unknown>;
+  load(model: ArrayBufferLike, backend?: Exclude<Backend, "auto">, wasmPaths?: RuntimeOptions["wasmPaths"]): Promise<unknown>;
   run(input: ArrayBuffer | ArrayBufferView | { readonly buffer: ArrayBuffer; readonly dims: readonly number[]; readonly inputName?: string }, signal?: AbortSignal): Promise<unknown>;
   dispose(): Promise<void>;
 }
@@ -56,9 +56,9 @@ export function createWorkerBridge(worker: WorkerLike, options: { onProgress?: (
     });
   };
   return {
-    load(model, backend = "wasm") {
+    load(model, backend = "wasm", wasmPaths) {
       const buffer = model instanceof ArrayBuffer ? model : new Uint8Array(model).slice().buffer;
-      return request({ type: "load", requestId: id(), model: buffer, backend }, [buffer]);
+      return request({ type: "load", requestId: id(), model: buffer, backend, ...(wasmPaths === undefined ? {} : { wasmPaths }) }, [buffer]);
     },
     run(input, signal) {
       const requestId = id();

@@ -11,11 +11,12 @@ export interface OCRProgress {
   readonly totalBytes?: number;
 }
 export interface ModelManifest { readonly id: string; readonly version: string; readonly components?: readonly string[]; readonly [key: string]: unknown; }
-export type CustomModel = { readonly manifest: ModelManifest } | { readonly manifestUrl: string };
+export type CustomModel = { readonly manifest: ModelManifest; readonly preset?: ModelPreset } | { readonly manifestUrl: string; readonly preset?: ModelPreset };
 export type ModelVariant = ModelPreset | CustomModel;
 export interface ModelSelection { readonly det?: ModelVariant; readonly rec?: ModelVariant; }
 export type ModelSource = ModelSelection;
-export interface RuntimeOptions { readonly backend?: Backend; readonly execution?: ExecutionMode; readonly allowFallback?: boolean; readonly model?: ModelSelection; readonly signal?: AbortSignal; readonly onProgress?: (event: OCRProgress) => void; }
+export type WasmPaths = string | { readonly mjs?: string; readonly wasm?: string };
+export interface RuntimeOptions { readonly backend?: Backend; readonly execution?: ExecutionMode; readonly allowFallback?: boolean; readonly wasmPaths?: WasmPaths; readonly model?: ModelSelection; readonly signal?: AbortSignal; readonly onProgress?: (event: OCRProgress) => void; }
 export interface RunOptions { readonly signal?: AbortSignal; }
 export interface Detector { readonly kind: "detector"; load(): Promise<void>; detect(input: unknown, options?: RunOptions): Promise<DetectionResult>; dispose(): Promise<void>; }
 export interface Recognizer { readonly kind: "recognizer"; load(): Promise<void>; recognize(input: unknown, options?: RunOptions): Promise<RecognitionResult>; dispose(): Promise<void>; }
