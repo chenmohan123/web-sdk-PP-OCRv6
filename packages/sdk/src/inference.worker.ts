@@ -25,7 +25,7 @@ const handle = async (event: MessageEvent<WorkerRequest>) => {
       await session?.dispose();
       progressRequestId = request.requestId;
       try {
-        session = await createOrtSession({ ort: ort as never, backend: request.backend, model: request.model, onProgress: (progress) => send(progress.progress === undefined
+        session = await createOrtSession({ ort: ort as never, backend: request.backend, model: request.model, ...(request.wasmPaths === undefined ? {} : { wasmPaths: request.wasmPaths }), onProgress: (progress) => send(progress.progress === undefined
           ? { type: "progress", requestId: progressRequestId ?? request.requestId, phase: progress.phase }
           : { type: "progress", requestId: progressRequestId ?? request.requestId, phase: progress.phase, progress: progress.progress }) });
         send({ type: "result", requestId: request.requestId, result: { backend: session.backend, sessionMs: session.sessionMs } });

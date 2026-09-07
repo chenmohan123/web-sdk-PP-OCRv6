@@ -19,6 +19,7 @@ const defaultCache = createIndexedDBCache();
 
 const isCustom = (selection: ModelVariant): selection is CustomModel => typeof selection === "object";
 const asPreset = (selection: ModelVariant | undefined): ModelPreset => typeof selection === "string" ? selection : "small";
+const checkAborted = (signal?: AbortSignal): void => { if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Model loading aborted"); };
 
 async function fetchManifest(url: string, signal?: AbortSignal, onProgress?: (event: Parameters<NonNullable<RuntimeOptions["onProgress"]>>[0]) => void): Promise<RuntimeManifest> {
   safeEmitProgress(onProgress, { phase: "manifest", progress: 0 });
@@ -39,17 +40,18 @@ async function fetchManifest(url: string, signal?: AbortSignal, onProgress?: (ev
 
 async function resolveManifest(selection: ModelVariant | undefined, signal?: AbortSignal, onProgress?: RuntimeOptions["onProgress"]): Promise<{ manifest: RuntimeManifest; manifestUrl?: string; preset: ModelPreset }> {
   if (selection && isCustom(selection)) {
-    if ("manifestUrl" in selection) return { manifest: await fetchManifest(selection.manifestUrl, signal, onProgress), manifestUrl: selection.manifestUrl, preset: "small" };
+    if ("manifestUrl" in selection) return { manifest: await fetchManifest(selection.manifestUrl, signal, onProgress), manifestUrl: selection.manifestUrl, preset: selection.preset ?? "small" };
     safeEmitProgress(onProgress, { phase: "manifest", progress: 0 });
     safeEmitProgress(onProgress, { phase: "manifest", progress: 1 });
-    return { manifest: parseRuntimeManifest(selection.manifest), preset: "small" };
+    return { manifest: parseRuntimeManifest(selection.manifest), preset: selection.preset ?? "small" };
   }
   return { manifest: await fetchManifest(DEFAULT_MANIFEST_URL, signal, onProgress), manifestUrl: DEFAULT_MANIFEST_URL, preset: asPreset(selection) };
 }
 
 async function resolveAsset(role: "det" | "rec", selection: ModelVariant | undefined, signal?: AbortSignal, onProgress?: RuntimeOptions["onProgress"]): Promise<{ manifest: RuntimeManifest; asset: RuntimeManifestAsset; manifestUrl?: string; preset: ModelPreset }> {
   const resolved = await resolveManifest(selection, signal, onProgress);
-  const asset = resolved.manifest.assets.find((candidate) => candidate.role === role && (isCustom(selection as ModelVariant) || candidate.preset === resolved.preset));
+  // 多模型清单按 preset 选择；没有 preset 的旧式单模型清单仍取唯一角色资产。
+  const asset = resolved.manifest.assets.find((candidate) => candidate.role === role && (candidate.preset === undefined || candidate.preset === resolved.preset));
   if (!asset) throw new PPOCRv6Error("INVALID_MANIFEST", `Manifest has no ${role} asset for preset ${resolved.preset}`);
   return { ...resolved, asset };
 }
@@ -82,8 +84,9 @@ async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: P
   let actualBackend = plan.candidates[0]!;
   let lastError: unknown;
   for (const backend of plan.candidates) {
+    checkAborted(options.signal);
     try {
-      executor = await createInferenceExecutor({ model: loaded.bytes, backend, execution: plan.execution, onProgress: (progress) => reporter.emit(role, { phase: progress.phase === "session" ? "load" : "inference", ...(progress.progress === undefined ? {} : { progress: progress.progress }) }) });
+      executor = await createInferenceExecutor({ model: loaded.bytes, backend, execution: plan.execution, ...(options.wasmPaths === undefined ? {} : { wasmPaths: options.wasmPaths }), onProgress: (progress) => reporter.emit(role, { phase: progress.phase === "session" ? "load" : "inference", ...(progress.progress === undefined ? {} : { progress: progress.progress }) }) });
       actualBackend = backend;
       break;
     }
@@ -103,36 +106,91 @@ async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: P
 export function createPublicDetector(options: RuntimeOptions = {}, progressReporter?: ProgressReporter): Detector {
   let delegate: Detector | undefined;
   let setup: Promise<Detector> | undefined;
+  let disposal: Promise<void> | undefined;
   let disposed = false;
+  const controller = new AbortController();
   const ready = () => {
     if (disposed) return Promise.reject(new PPOCRv6Error("DISPOSED", "Detector is disposed"));
+    if (setup) return setup;
+    const abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
     const reporter = progressReporter ?? createProgressReporter(options.onProgress, ["det"]);
-    setup ??= prepare(options, "det", reporter).then((prepared) => {
-      const engine = createDetectorEngine({ asset: prepared.asset, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
-      delegate = engine;
-      return engine;
-    });
+    setup = prepare({ ...options, signal: controller.signal }, "det", reporter).then(async (prepared) => {
+      try {
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "Detector is disposed");
+        checkAborted(controller.signal);
+        const engine = createDetectorEngine({ asset: prepared.asset, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
+        await engine.load();
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "Detector is disposed");
+        checkAborted(controller.signal);
+        delegate = engine;
+        return engine;
+      } catch (error) {
+        await prepared.executor.dispose();
+        throw error;
+      }
+    }).finally(() => options.signal?.removeEventListener("abort", abort));
     return setup;
   };
-  return { kind: "detector", async load() { await (await ready()).load(); }, async detect(input, runOptions) { return (await ready()).detect(input, runOptions); }, async dispose() { if (disposed) return; disposed = true; await delegate?.dispose(); } };
+  return { kind: "detector", async load() { await ready(); }, async detect(input, runOptions) { return (await ready()).detect(input, runOptions); }, dispose() {
+    if (disposal) return disposal;
+    disposed = true;
+    controller.abort();
+    disposal = (async () => {
+      // 初始化尚未交出资源时，由 setup 的失败分支释放迟到的执行器。
+      await setup?.catch(() => undefined);
+      await delegate?.dispose();
+      delegate = undefined;
+    })();
+    return disposal;
+  } };
 }
 
 export function createPublicRecognizer(options: RuntimeOptions = {}, progressReporter?: ProgressReporter): Recognizer {
   let delegate: Recognizer | undefined;
   let setup: Promise<Recognizer> | undefined;
+  let disposal: Promise<void> | undefined;
   let disposed = false;
+  const controller = new AbortController();
   const ready = () => {
     if (disposed) return Promise.reject(new PPOCRv6Error("DISPOSED", "Recognizer is disposed"));
+    if (setup) return setup;
+    const abort = () => controller.abort();
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
     const reporter = progressReporter ?? createProgressReporter(options.onProgress, ["rec"]);
-    setup ??= prepare(options, "rec", reporter).then(async (prepared) => {
-      const dictionary = await loadDictionary(prepared.asset, prepared.manifestUrl, options.signal);
-      const engine = createRecognizerEngine({ asset: prepared.asset, dictionary, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
-      delegate = engine;
-      return engine;
-    });
+    setup = prepare({ ...options, signal: controller.signal }, "rec", reporter).then(async (prepared) => {
+      try {
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "Recognizer is disposed");
+        checkAborted(controller.signal);
+        const dictionary = await loadDictionary(prepared.asset, prepared.manifestUrl, controller.signal);
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "Recognizer is disposed");
+        checkAborted(controller.signal);
+        const engine = createRecognizerEngine({ asset: prepared.asset, dictionary, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
+        await engine.load();
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "Recognizer is disposed");
+        checkAborted(controller.signal);
+        delegate = engine;
+        return engine;
+      } catch (error) {
+        await prepared.executor.dispose();
+        throw error;
+      }
+    }).finally(() => options.signal?.removeEventListener("abort", abort));
     return setup;
   };
-  return { kind: "recognizer", async load() { await (await ready()).load(); }, async recognize(input, runOptions) { return (await ready()).recognize(input, runOptions); }, async dispose() { if (disposed) return; disposed = true; await delegate?.dispose(); } };
+  return { kind: "recognizer", async load() { await ready(); }, async recognize(input, runOptions) { return (await ready()).recognize(input, runOptions); }, dispose() {
+    if (disposal) return disposal;
+    disposed = true;
+    controller.abort();
+    disposal = (async () => {
+      await setup?.catch(() => undefined);
+      await delegate?.dispose();
+      delegate = undefined;
+    })();
+    return disposal;
+  } };
 }
 
 export function createPublicOCR(options: RuntimeOptions = {}): OCRPipeline {

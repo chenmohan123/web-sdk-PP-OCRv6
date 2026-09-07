@@ -1,10 +1,16 @@
 import { expect, test } from "playwright/test";
 
-test("模型来源默认沿用 SDK 并映射 Hugging Face manifest", async ({ page }) => {
-  await page.goto("/?fixture=1");
+test("默认使用 ModelScope 且仅提供两个远程模型来源", async ({ page }) => {
+  await page.goto("/");
 
-  await expect(page.getByLabel("模型来源", { exact: true })).toHaveValue("default");
-  await expect(page.getByLabel("模型来源").locator("option")).toHaveCount(3);
+  await expect(page.getByLabel("模型来源", { exact: true })).toHaveValue("modelscope");
+  await expect(page.getByLabel("模型来源").locator("option")).toHaveText(["ModelScope", "Hugging Face"]);
+  await expect(page.getByLabel("检测模型")).toBeEnabled();
+  await expect(page.getByLabel("识别模型")).toBeEnabled();
+  await page.getByLabel("检测模型").selectOption("medium");
+  await page.getByLabel("识别模型").selectOption("tiny");
+  await expect(page.getByLabel("检测模型")).toHaveValue("medium");
+  await expect(page.getByLabel("识别模型")).toHaveValue("tiny");
   await expect(page.getByRole("option", { name: "Hugging Face" })).toBeEnabled();
   await expect(page.getByRole("option", { name: /ModelScope/ })).toBeEnabled();
   await expect(page.getByText("模型清单", { exact: true })).toBeVisible();
@@ -13,12 +19,12 @@ test("模型来源默认沿用 SDK 并映射 Hugging Face manifest", async ({ pa
     const module = (await import(moduleUrl)) as typeof import("../src/model-sources");
     return {
       keys: module.MODEL_SOURCE_OPTIONS.map((option) => option.key),
-      defaultModel: module.selectionToModel("default"),
+      defaultModel: module.selectionToModel(module.DEFAULT_MODEL_SOURCE),
       huggingFaceModel: module.selectionToModel("huggingface"),
       modelScopeModel: module.selectionToModel("modelscope"),
       available: module.MODEL_SOURCE_OPTIONS.map((option) => ({ key: option.key, available: option.available, disabledReason: option.disabledReason, manifestUrl: option.manifestUrl })),
-      defaultRuntimeModel: module.runtimeModelForSelection("default", "small", "small", ""),
-      presetRuntimeModel: module.runtimeModelForSelection("default", "medium", "tiny", ""),
+      defaultRuntimeModel: module.runtimeModelForSelection(module.DEFAULT_MODEL_SOURCE, "small", "small", ""),
+      customRuntimeModel: module.runtimeModelForSelection("modelscope", "small", "small", " https://example.com/custom.json "),
       huggingFaceRuntimeModel: module.runtimeModelForSelection(
         "huggingface",
         "small",
@@ -28,31 +34,34 @@ test("模型来源默认沿用 SDK 并映射 Hugging Face manifest", async ({ pa
     };
   }, "/src/model-sources.ts");
 
-  expect(contract.keys).toEqual(["default", "huggingface", "modelscope"]);
-  expect(contract.defaultModel).toBeUndefined();
+  expect(contract.keys).toEqual(["modelscope", "huggingface"]);
+  expect(contract.defaultModel).toEqual(contract.modelScopeModel);
   expect(contract.huggingFaceModel).toEqual({
     manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0"
   });
-  expect(contract.defaultRuntimeModel).toBeUndefined();
-  expect(contract.presetRuntimeModel).toEqual({ det: "medium", rec: "tiny" });
+  expect(contract.defaultRuntimeModel).toEqual({
+    det: { ...contract.modelScopeModel, preset: "small" },
+    rec: { ...contract.modelScopeModel, preset: "small" },
+  });
+  expect(contract.customRuntimeModel).toEqual({
+    det: { manifestUrl: "https://example.com/custom.json", preset: "small" },
+    rec: { manifestUrl: "https://example.com/custom.json", preset: "small" },
+  });
   expect(contract.huggingFaceRuntimeModel).toEqual({
-    det: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" },
-    rec: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" },
+    det: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0", preset: "small" },
+    rec: { manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0", preset: "small" },
   });
   expect(contract.modelScopeModel).toEqual({
     manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0"
   });
   expect(contract.available).toEqual([
-    { key: "default", available: true, manifestUrl: undefined },
-    { key: "huggingface", available: true, disabledReason: undefined, manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" },
-    { key: "modelscope", available: true, disabledReason: undefined, manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0" }
+    { key: "modelscope", available: true, disabledReason: undefined, manifestUrl: "https://modelscope.cn/models/chenmohan/web-sdk-pp-ocrv6/resolve/master/manifest.json?v=1.0.0" },
+    { key: "huggingface", available: true, disabledReason: undefined, manifestUrl: "https://huggingface.co/chenmohan/web-sdk-pp-ocrv6/resolve/main/manifest.json?v=1.0.0" }
   ]);
 });
 
 test("切换模型来源会清空旧结果和自定义 manifest", async ({ page }) => {
   await page.goto("/?fixture=1");
-  await page.getByLabel("检测模型").selectOption("medium");
-  await page.getByLabel("识别模型").selectOption("medium");
   await page.getByLabel("自定义 manifest 地址").fill("https://example.com/custom.json");
   await page.getByRole("button", { name: "使用示例" }).click();
   await page.getByRole("button", { name: "开始识别" }).click();
@@ -70,8 +79,8 @@ test("切换模型来源会清空旧结果和自定义 manifest", async ({ page 
   );
   await expect(page.getByLabel("检测模型")).toHaveValue("small");
   await expect(page.getByLabel("识别模型")).toHaveValue("small");
-  await expect(page.getByLabel("检测模型")).toBeDisabled();
-  await expect(page.getByLabel("识别模型")).toBeDisabled();
+  await expect(page.getByLabel("检测模型")).toBeEnabled();
+  await expect(page.getByLabel("识别模型")).toBeEnabled();
 });
 
 test("运行中切换模型来源不会回写已取消的结果", async ({ page }) => {
@@ -188,7 +197,7 @@ test("supports persistent pan mode, temporary Space pan, and Escape exit", async
   const pan = page.getByRole("button", { name: "拖动查看" });
   await pan.click();
   await expect(pan).toHaveAttribute("aria-pressed", "true");
-  const box = await viewport.boundingBox();
+  const box = await page.locator(".viewport-canvas").boundingBox();
   expect(box).not.toBeNull();
   if (box) {
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

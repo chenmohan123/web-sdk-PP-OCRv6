@@ -1,6 +1,6 @@
 import * as defaultOrt from "onnxruntime-web";
 import { PPOCRv6Error } from "../errors";
-import type { Backend } from "../types";
+import type { Backend, WasmPaths } from "../types";
 
 type OrtSession = {
   run(feeds: Record<string, unknown>, options?: { terminate?: boolean }): Promise<Record<string, unknown>>;
@@ -16,7 +16,7 @@ export interface OrtSessionOptions {
   readonly ort?: OrtModule;
   readonly backend: Exclude<Backend, "auto">;
   readonly model: ArrayBufferLike;
-  readonly wasmPaths?: string | Record<string, string>;
+  readonly wasmPaths?: WasmPaths;
   readonly numThreads?: number;
   readonly onProgress?: (progress: OrtSessionProgress) => void;
 }
@@ -32,15 +32,16 @@ const emitProgress = (callback: ((progress: OrtSessionProgress) => void) | undef
   try { callback?.(progress); } catch { /* 用户回调异常不能中断 runtime。 */ }
 };
 const translate = (error: unknown, phase: "create" | "run"): PPOCRv6Error => {
+  if (error instanceof PPOCRv6Error) return error;
   const message = messageOf(error);
-  if (/abort|cancel|terminat/i.test(message)) return new PPOCRv6Error("ABORTED", message);
+  if (error instanceof Error && error.name === "AbortError") return new PPOCRv6Error("ABORTED", message);
   if (/out of memory|memory allocation|allocation failed/i.test(message)) return new PPOCRv6Error("OUT_OF_MEMORY", message);
   return new PPOCRv6Error(phase === "create" ? "SESSION_CREATE_FAILED" : "INFERENCE_FAILED", message);
 };
 
 export async function createOrtSession(options: OrtSessionOptions): Promise<OrtSessionHandle> {
   const ort = (options.ort ?? defaultOrt) as unknown as OrtModule;
-  if (options.backend === "wasm" && options.wasmPaths !== undefined && ort.env?.wasm) ort.env.wasm.wasmPaths = options.wasmPaths;
+  if (options.wasmPaths !== undefined && ort.env?.wasm) ort.env.wasm.wasmPaths = options.wasmPaths;
   const executionProviders = [options.backend];
   const sessionOptions: Record<string, unknown> = { executionProviders };
   if (options.numThreads !== undefined) sessionOptions.intraOpNumThreads = options.numThreads;
@@ -55,21 +56,31 @@ export async function createOrtSession(options: OrtSessionOptions): Promise<OrtS
   const sessionMs = performance.now() - started;
   emitProgress(options.onProgress, { phase: "session", progress: 1 });
   let disposed = false;
+  let disposal: Promise<void> | undefined;
+  let queue = Promise.resolve();
   return {
     backend: options.backend,
     sessionMs,
     async run(feeds, signal) {
       if (disposed) throw new PPOCRv6Error("DISPOSED", "ORT session is disposed");
       if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Inference aborted");
-      let abortReject: ((reason: PPOCRv6Error) => void) | undefined;
-      const onAbort = () => { abortReject?.(new PPOCRv6Error("ABORTED", "Inference aborted")); };
-      signal?.addEventListener("abort", onAbort, { once: true });
-      emitProgress(options.onProgress, { phase: "inference", progress: 0 });
+      let onAbort: (() => void) | undefined;
+      const aborted = signal ? new Promise<never>((_, reject) => {
+        onAbort = () => reject(new PPOCRv6Error("ABORTED", "Inference aborted"));
+        signal.addEventListener("abort", onAbort, { once: true });
+      }) : undefined;
+      const runPromise = queue.then(async () => {
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "ORT session is disposed");
+        if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Inference aborted");
+        emitProgress(options.onProgress, { phase: "inference", progress: 0 });
+        if (disposed) throw new PPOCRv6Error("DISPOSED", "ORT session is disposed");
+        if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Inference aborted");
+        return session.run(feeds, { terminate: false });
+      });
+      // 取消仅结束调用方等待；底层推理完成后才能重跑或释放会话。
+      queue = runPromise.then(() => undefined, () => undefined);
       try {
-        const runPromise = session.run(feeds, { terminate: false });
-        const result = signal
-          ? await Promise.race([runPromise, new Promise<Record<string, unknown>>((_, reject) => { abortReject = reject; })])
-          : await runPromise;
+        const result = aborted ? await Promise.race([runPromise, aborted]) : await runPromise;
         if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Inference aborted");
         emitProgress(options.onProgress, { phase: "inference", progress: 1 });
         return result;
@@ -77,13 +88,14 @@ export async function createOrtSession(options: OrtSessionOptions): Promise<OrtS
         if (error instanceof PPOCRv6Error) throw error;
         throw translate(error, "run");
       } finally {
-        signal?.removeEventListener("abort", onAbort);
+        if (onAbort) signal?.removeEventListener("abort", onAbort);
       }
     },
-    async dispose() {
-      if (disposed) return;
+    dispose() {
+      if (disposal) return disposal;
       disposed = true;
-      await session.release();
+      disposal = queue.then(() => session.release());
+      return disposal;
     },
   };
 }

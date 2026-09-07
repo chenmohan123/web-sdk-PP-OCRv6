@@ -1,8 +1,8 @@
-import type { Backend } from "../types";
+import type { Backend, RuntimeOptions } from "../types";
 import type { ErrorCode, ErrorDetails } from "../errors";
 
 export type WorkerRequest =
-  | { readonly type: "load"; readonly requestId: string; readonly model: ArrayBuffer; readonly backend: Exclude<Backend, "auto"> }
+  | { readonly type: "load"; readonly requestId: string; readonly model: ArrayBuffer; readonly backend: Exclude<Backend, "auto">; readonly wasmPaths?: RuntimeOptions["wasmPaths"] }
   | { readonly type: "run"; readonly requestId: string; readonly input: ArrayBuffer; readonly inputName: string; readonly dims: readonly number[] }
   | { readonly type: "cancel"; readonly requestId: string }
   | { readonly type: "dispose"; readonly requestId: string };
