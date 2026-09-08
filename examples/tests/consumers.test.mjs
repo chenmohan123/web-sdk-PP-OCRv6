@@ -8,7 +8,7 @@ const root = resolve(import.meta.dirname, "../..");
 const destination = await mkdtemp(join(tmpdir(), "ocrv6-consumers-"));
 const tarball = process.argv[2] ? resolve(process.argv[2]) : undefined;
 const candidate = JSON.parse(await readFile(join(root, "packages/sdk/package.json"), "utf8"));
-const expectedVersion = tarball ? candidate.version : "0.1.8";
+const expectedVersion = tarball ? candidate.version : "0.2.0";
 if (tarball) await readFile(tarball);
 function command(cwd, args) {
   return new Promise((done, reject) => {

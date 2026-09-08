@@ -27,7 +27,7 @@ export function createExampleRunner(render) {
           ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.27.0/dist/";
           const ocr = createOCR({ model: { det: selection, rec: selection }, backend: "wasm", execution: "main", allowFallback: false });
           active = ocr;
-          // 0.1.8 的 ocr 会顺序初始化 DET/REC，避免并行 load 提前失败。
+          // 通过 ocr 懒加载并执行 DET/REC。
           const result = await ocr.ocr(file, { signal });
           message = JSON.stringify(result, null, 2);
         } catch (error) {
@@ -48,7 +48,7 @@ export function createExampleRunner(render) {
     async dispose() {
       closed = true;
       controller?.abort();
-      // 0.1.8 不能在初始化结束前 dispose；由任务 finally 回收迟到会话。
+      // 等待任务收尾，由 finally 统一释放会话。
       await task;
     },
   };

@@ -1,6 +1,6 @@
 # PP-OCRv6 微信 web-view
 
-固定使用已发布的 `web-sdk-pp-ocrv6@0.1.8` 和 `onnxruntime-web@1.27.0`，无需构建。从仓库根目录启动：
+固定使用已发布的 `web-sdk-pp-ocrv6@0.2.0` 和 `onnxruntime-web@1.27.0`，无需构建。从仓库根目录启动：
 
 ```sh
 npx --yes http-server@14.1.1 examples/wechat-web-view -p 8080 -c-1
@@ -12,8 +12,8 @@ import map 解析已发布 SDK 的 ORT 依赖，ORT 的 mjs/wasm 来自同版本
 
 仅面向公众号 H5 和小程序 web-view；原生小程序运行时不支持。上线需配置微信业务域名，并在目标微信版本验证 import map、WebAssembly、文件选择和网络访问。桌面 Chromium 测试不能证明微信设备兼容。
 
-取消及卸载会立刻停止结果回写，等待已开始的初始化结束后再释放；公开 0.1.8 的初始化不支持安全地提前 dispose。本示例仅对推理传入取消信号。
+取消及卸载会停止旧结果回写；本示例向 `ocr` 传入取消信号，由任务的 `finally` 等待收尾并释放会话。SDK 0.2.0 还支持在初始化期间调用 `dispose()` 来取消下载。
 
-通过 ocr 懒加载顺序初始化 DET/REC，避免公开 0.1.8 并行 load 在一路失败时提前返回。
+通过 `ocr` 懒加载并执行 DET/REC；默认 ModelScope，显式来源失败不会静默切换。
 
-0.2.0 支持初始化取消/释放与 `RuntimeOptions.wasmPaths`；以上限制仅针对本示例固定使用的 0.1.8，版本差异见 [0.2.0 发布说明](../../reports/release/0.2.0.md)。
+缓存、耗时与取消修复见 [0.2.0 发布说明](../../reports/release/0.2.0.md)。

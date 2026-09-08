@@ -9,7 +9,7 @@ const root = resolve(import.meta.dirname, "../..");
 const require = createRequire(join(root, "apps/demo/package.json"));
 const { chromium } = require("playwright");
 const directory = resolve(process.argv[2]);
-const version = process.argv.includes("--cdn") ? "0.1.8" : JSON.parse(await readFile(join(directory, "vanilla/node_modules/web-sdk-pp-ocrv6/package.json"), "utf8")).version;
+const version = process.argv.includes("--cdn") ? "0.2.0" : JSON.parse(await readFile(join(directory, "vanilla/node_modules/web-sdk-pp-ocrv6/package.json"), "utf8")).version;
 const models = JSON.parse(await readFile(join(root, "apps/demo/tests/fixtures/runtime-models.json"), "utf8"));
 const browser = await chromium.launch({ headless: true });
 console.log(`验证环境：${new Date().toISOString()} / ${process.platform} ${release()} / ${cpus()[0]?.model} / Chromium ${browser.version()} / SDK ${version} / ORT 1.27.0`);
