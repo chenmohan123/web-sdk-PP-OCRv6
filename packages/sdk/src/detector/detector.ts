@@ -1,6 +1,7 @@
+import { currentLoadTimings } from "../timing";
 import { PPOCRv6Error } from "../errors";
 import type { RuntimeManifestAsset } from "../model/manifest";
-import type { DetectionResult, Detector, ModelInfo, RuntimeInfo, TimingBreakdown } from "../types";
+import type { DetectionResult, Detector, InitializationTiming, ModelInfo, RuntimeInfo, TimingBreakdown } from "../types";
 import { decodeImage, type RasterImage } from "./decode";
 import { postprocessDetection } from "./postprocess";
 import { preprocessDetection } from "./preprocess";
@@ -15,6 +16,7 @@ export interface DetectorEngineOptions {
   readonly asset: RuntimeManifestAsset;
   readonly model: ModelInfo;
   readonly runtime: RuntimeInfo;
+  readonly initialization?: InitializationTiming;
   readonly loadModel: () => Promise<{ readonly bytes: Uint8Array; readonly timings: Pick<TimingBreakdown, "modelDownloadMs" | "modelCacheReadMs" | "integrityMs"> }>;
   readonly createExecutor: (bytes: Uint8Array) => Promise<DetectorExecutor>;
   readonly decode?: (input: unknown) => Promise<RasterImage>;
@@ -28,6 +30,7 @@ export function createDetectorEngine(options: DetectorEngineOptions): Detector {
   let executor: DetectorExecutor | undefined;
   let loadTimings = emptyLoadTimings;
   let loadPromise: Promise<void> | undefined;
+  let initialization: InitializationTiming | undefined;
   let disposed = false;
   let queue = Promise.resolve();
   const load = (): Promise<void> => {
@@ -38,6 +41,7 @@ export function createDetectorEngine(options: DetectorEngineOptions): Detector {
       if (disposed) throw new PPOCRv6Error("DISPOSED", "Detector is disposed");
       loadTimings = loaded.timings;
       executor = await options.createExecutor(loaded.bytes);
+      initialization = options.initialization ?? { ...loadTimings, sessionMs: executor.sessionMs };
     })().catch((error) => { loadPromise = undefined; throw error; });
     return loadPromise;
   };
@@ -45,6 +49,8 @@ export function createDetectorEngine(options: DetectorEngineOptions): Detector {
     if (disposed) throw new PPOCRv6Error("DISPOSED", "Detector is disposed");
     if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "Detection aborted");
     const totalStarted = performance.now();
+    const cold = !executor;
+    const ownsInitialization = !loadPromise;
     await load();
     const decodeStarted = performance.now();
     const image = await (options.decode ?? decodeImage)(input);
@@ -76,8 +82,9 @@ export function createDetectorEngine(options: DetectorEngineOptions): Detector {
       model: options.model,
       runtime: options.runtime,
       timings: {
-        ...loadTimings,
-        sessionMs: executor!.sessionMs,
+        ...currentLoadTimings(initialization, ownsInitialization),
+        loadState: cold ? "cold" : "warm",
+        ...(initialization === undefined ? {} : { initialization }),
         decodeMs,
         preprocessMs,
         inferenceMs,
@@ -88,6 +95,7 @@ export function createDetectorEngine(options: DetectorEngineOptions): Detector {
   };
   return {
     kind: "detector",
+    get initialization() { return initialization; },
     load,
     detect(input, runOptions) {
       const result = queue.then(() => run(input, runOptions?.signal));

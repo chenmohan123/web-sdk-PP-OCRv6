@@ -12,6 +12,7 @@ import {
 } from "./model-sources";
 import { createOCRSessionManager } from "./ocr-session";
 import { createDemoPipeline, type Mode } from "./demo-pipeline";
+import { actualBackendLabel } from "./runtime-info";
 import { createCacheOperation } from "./cache-operation";
 
 type Status = "idle" | "downloading" | "loading" | "running" | "success" | "error" | "unsupported";
@@ -34,7 +35,7 @@ const fixtureResult = (): OCRResult => ({
   ],
   detections: [], image: { width: 820, height: 1024, source: "image" }, model: { id: "pp-ocrv6", version: "1.0.0", preset: "small" },
   runtime: { requestedBackend: "wasm", actualBackend: "wasm", execution: "worker", runtimeVersion: "onnxruntime-web@1.27.0" },
-  timings: { modelDownloadMs: 182.4, modelCacheReadMs: 0, integrityMs: 14.8, sessionMs: 127.6, decodeMs: 8.2, preprocessMs: 18.6, inferenceMs: 74.3, postprocessMs: 21.1, totalMs: 132.9 },
+  timings: { loadState: "warm", initialization: { modelDownloadMs: 182.4, modelCacheReadMs: 0, integrityMs: 14.8, sessionMs: 127.6, source: "network" }, modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0, sessionMs: 0, decodeMs: 8.2, preprocessMs: 18.6, inferenceMs: 74.3, postprocessMs: 21.1, totalMs: 132.9 },
   stageTimings: { detectionMs: 62.4, cropMs: 7.8, recognitionMs: 62.7 },
 });
 
@@ -60,8 +61,10 @@ export function App() {
   const [source, setSource] = useState<Blob>();
   const [imageUrl, setImageUrl] = useState<string>();
   const [result, setResult] = useState<OCRResult>();
+  const [runMetrics, setRunMetrics] = useState<{ reused: boolean; loadMs: number; totalMs: number }>();
   const [resultMode, setResultMode] = useState<Mode>("ocr");
   const [selected, setSelected] = useState<number>();
+  const fixtureSessionKeyRef = useRef<string | undefined>(undefined);
   const abortRef = useRef<AbortController | undefined>(undefined);
   const imageRequestRef = useRef(0);
   const activeRunRef = useRef<Promise<void> | undefined>(undefined);
@@ -103,6 +106,7 @@ export function App() {
   useEffect(() => () => { imageRequestRef.current += 1; abortRef.current?.abort(); void Promise.resolve(activeRunRef.current).then(() => sessionManagerRef.current.dispose()); }, []);
   const timingRows = useMemo(() => [
     [copy.total, result?.timings.totalMs], [copy.modelDownload, result?.timings.modelDownloadMs], [copy.modelLoad, result?.timings.sessionMs],
+    [copy.cacheRead, result?.timings.modelCacheReadMs], [copy.integrity, result?.timings.integrityMs], [copy.decode, result?.timings.decodeMs],
     [copy.preprocess, result?.timings.preprocessMs], [copy.inference, result?.timings.inferenceMs], [copy.postprocess, result?.timings.postprocessMs],
   ] as const, [copy, result]);
 
@@ -166,6 +170,7 @@ export function App() {
     try {
       await activeRunRef.current;
       checkActive();
+      const configKey = JSON.stringify({ mode, source: modelSource, manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
       if (fixtureMode) {
         const waitForFixtureStage = async () => {
           await new Promise((resolve) => setTimeout(resolve, 150));
@@ -180,6 +185,9 @@ export function App() {
         setStatus("running");
         await waitForFixtureStage();
         const fixture = fixtureResult();
+        const reused = fixtureSessionKeyRef.current === configKey;
+        fixtureSessionKeyRef.current = configKey;
+        setRunMetrics({ reused, loadMs: reused ? 0 : 324.8, totalMs: reused ? fixture.timings.totalMs : 324.8 + fixture.timings.totalMs });
         const next: OCRResult = { ...fixture, runtime: { ...fixture.runtime, requestedBackend: backend, actualBackend: backend === "auto" ? "webgpu" : backend, execution } };
         setResult(next);
         setResultMode(mode);
@@ -194,12 +202,13 @@ export function App() {
         else if (event.phase === "inference") setStatus("running");
         else setStatus("loading");
       } };
-      const configKey = JSON.stringify({ mode, source: modelSource, manifest: manifestUrl.trim(), det: detPreset, rec: recPreset, backend, execution, allowFallback });
-      const { ocr } = await sessionManagerRef.current.ensure(configKey, options, mode);
+      const runStarted = performance.now();
+      const { ocr, reused, loadMs } = await sessionManagerRef.current.ensure(configKey, options, mode);
       checkActive();
       setStatus("running");
       const next = await ocr.ocr(source, { signal: controller.signal });
       checkActive();
+      setRunMetrics({ reused, loadMs, totalMs: performance.now() - runStarted });
       setResult(next); setResultMode(mode); setSelected(next.lines[0]?.index); setStatus("success");
     } catch (caught) {
       if (abortRef.current !== controller) return;
@@ -224,7 +233,7 @@ export function App() {
     setCacheBusy(true); setNotice(""); setError(undefined);
     try {
       await cacheOperationRef.current.run({
-        cancel() { imageRequestRef.current += 1; abortRef.current?.abort(); setResult(undefined); setSelected(undefined); },
+        cancel() { fixtureSessionKeyRef.current = undefined; imageRequestRef.current += 1; abortRef.current?.abort(); setResult(undefined); setSelected(undefined); },
         wait: async () => { await activeRunRef.current; },
         dispose: () => sessionManagerRef.current.dispose(),
         clear: async () => {
@@ -262,8 +271,8 @@ export function App() {
       <aside className="details panel" data-testid="details-panel">
         <div className="details-summary">
           <section data-sdk-model-info><div className="panel-title"><Zap size={17}/><h2>{copy.modelInfo}</h2></div><dl><div><dt>{copy.modelRepository}</dt><dd data-testid="model-source-value">{manifestUrl.trim() ? copy.customSource : activeModelSource.label[language]}</dd></div><div><dt>{copy.manifest}</dt><dd className="model-source-manifest" data-testid="model-source-manifest">{manifestUrl.trim() || activeModelSource.manifestUrl || copy.sdkDefaultManifest}</dd></div><div><dt>{copy.model} DET</dt><dd>PP-OCRv6 {detPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(detStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{detStats[1].toLocaleString()}</dd></div><div><dt>{copy.model} REC</dt><dd>PP-OCRv6 {recPreset}</dd></div><div><dt>{copy.size}</dt><dd>{fmtBytes(recStats[0])}</dd></div><div><dt>{copy.parameters}</dt><dd>{recStats[1].toLocaleString()}</dd></div></dl></section>
-          <section data-sdk-runtime-info><h2>{copy.runtimeInfo}</h2><dl><div><dt>{copy.requested}</dt><dd>{backend}</dd></div><div><dt>{copy.actual}</dt><dd>{result?.runtime.actualBackend ?? "-"}</dd></div><div><dt>{copy.execution}</dt><dd>{execution}</dd></div><div><dt>{copy.runtime}</dt><dd>{result?.runtime.runtimeVersion ?? "onnxruntime-web@1.27.0"}</dd></div></dl></section>
-          <section data-sdk-timing><h2>{copy.timing}</h2><dl>{timingRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}<div className="timing-secondary"><dt>{copy.cacheRead}</dt><dd>{fmtMs(result?.timings.modelCacheReadMs)}</dd></div><div className="timing-secondary"><dt>{copy.integrity}</dt><dd>{fmtMs(result?.timings.integrityMs)}</dd></div><div><dt>CPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "wasm" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div><div><dt>GPU {copy.cold}</dt><dd>{result?.runtime.actualBackend === "webgpu" ? fmtMs(result.timings.modelDownloadMs + result.timings.sessionMs) : "-"}</dd></div></dl></section>
+          <section data-sdk-runtime-info><h2>{copy.runtimeInfo}</h2><dl><div><dt>{copy.requested}</dt><dd>{result?.runtime.requestedBackend ?? backend}</dd></div><div><dt>{copy.actual}</dt><dd>{result ? actualBackendLabel(result.runtime) : "-"}</dd></div><div><dt>{copy.execution}</dt><dd>{result?.runtime.execution ?? execution}</dd></div><div><dt>{copy.runtime}</dt><dd>{result?.runtime.runtimeVersion ?? "onnxruntime-web@1.27.0"}</dd></div></dl></section>
+          <section data-sdk-timing><h2>{copy.timing}</h2><dl><div><dt>{copy.runState}</dt><dd data-sdk-run-state>{result && runMetrics ? runMetrics.reused ? copy.warmRun : copy.coldRun : "-"}</dd></div><div><dt>{copy.endToEnd}</dt><dd data-sdk-total-wall>{fmtMs(result ? runMetrics?.totalMs : undefined)}</dd></div><div><dt>{copy.loadWall}</dt><dd data-sdk-load-wall>{fmtMs(result ? runMetrics?.loadMs : undefined)}</dd></div></dl><dl data-sdk-run-phases>{timingRows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}</dl>{result?.timings.initialization && <details data-sdk-initialization><summary>{copy.initialization}</summary><dl>{([[copy.modelDownload, result.timings.initialization.modelDownloadMs], [copy.cacheRead, result.timings.initialization.modelCacheReadMs], [copy.integrity, result.timings.initialization.integrityMs], [copy.modelLoad, result.timings.initialization.sessionMs]] as const).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{fmtMs(value)}</dd></div>)}<div><dt>{copy.loadSource}</dt><dd>{result.timings.initialization.source === "cache" ? copy.cacheHit : result.timings.initialization.source === "network" ? copy.network : result.timings.initialization.source === "mixed" ? copy.mixedSource : "-"}</dd></div></dl><small>{copy.initializationNote}</small></details>}</section>
           <section className="cache-actions" aria-busy={cacheBusy}><div data-sdk-cache-usage aria-live="polite">{copy.cacheUsageCurrent}: {cacheUsage.current === undefined ? "-" : `${cacheUsage.current.toLocaleString()} B`} · {copy.cacheUsageAll}: {cacheUsage.all === undefined ? "-" : `${cacheUsage.all.toLocaleString()} B`}</div><small>{copy.cacheScope}</small><button data-sdk-cache-clear disabled={cacheBusy || modelSourceChanging} onClick={() => void clearCache(false)}><Trash2 size={15}/>{copy.cacheCurrent}</button><button data-sdk-cache-clear disabled={cacheBusy || modelSourceChanging} onClick={() => void clearCache(true)}><Trash2 size={15}/>{copy.cacheAll}</button>{cacheBusy && <span aria-live="polite">{copy.cacheClearing}</span>}{cacheError && <span className="error-text">{copy.cacheReadFailed}: {cacheError}</span>}{notice && <span className="cache-notice" aria-live="polite">{notice}</span>}</section>
         </div>
         <section className="ocr-results" data-testid="ocr-results"><div className="result-heading"><h2>{resultMode === "detection" ? copy.detection : resultMode === "recognition" ? copy.recognition : copy.results}</h2><span>{result?.lines.length ?? 0}</span></div>{result?.lines.length ? result.lines.map((line, order) => <button key={line.index} data-testid={`ocr-row-${line.index}`} aria-current={selected === line.index ? "true" : undefined} className={selected === line.index ? "ocr-row selected" : "ocr-row"} onClick={() => setSelected(line.index)}><span className="row-index">{String(order + 1).padStart(2, "0")}</span><span><strong>{resultMode === "detection" ? `${copy.line} ${order + 1}` : line.text}</strong><small>{resultMode === "detection" ? copy.detection : copy.score} {((resultMode === "detection" ? line.score : line.recognitionScore) * 100).toFixed(1)}%</small></span></button>) : <p className="no-results">{copy.noResults}</p>}</section>

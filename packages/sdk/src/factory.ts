@@ -1,3 +1,4 @@
+import { currentLoadTimings } from "./timing";
 import { createIndexedDBCache } from "./cache/indexeddb-cache";
 import { createDetectorEngine } from "./detector/detector";
 import { decodeImage } from "./detector/decode";
@@ -74,13 +75,14 @@ async function loadDictionary(asset: RuntimeManifestAsset, manifestUrl: string |
 
 const modelInfo = (manifest: RuntimeManifest, asset: RuntimeManifestAsset, preset: ModelPreset, manifestUrl?: string): ModelInfo => ({ id: manifest.modelId, version: manifest.version, preset, ...(manifestUrl === undefined ? {} : { manifestUrl }), component: asset.id, bytes: asset.bytes, ...(typeof asset.parameterCount === "number" ? { parameterCount: asset.parameterCount } : {}) });
 
-async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: ProgressReporter): Promise<{ asset: RuntimeManifestAsset; model: ModelInfo; runtime: RuntimeInfo; loaded: Awaited<ReturnType<ReturnType<typeof createModelManager>["load"]>>; executor: InferenceExecutor; manifestUrl?: string }> {
+async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: ProgressReporter): Promise<{ asset: RuntimeManifestAsset; model: ModelInfo; runtime: RuntimeInfo; loaded: Awaited<ReturnType<ReturnType<typeof createModelManager>["load"]>>; executor: InferenceExecutor; sessionMs: number; manifestUrl?: string }> {
   const writeCache = defaultCache.createWriter?.();
   const selection = options.model?.[role];
   const resolved = await resolveAsset(role, selection, options.signal, (event) => reporter.emit(role, event));
   reporter.register(role, resolved.asset.bytes);
   const plan = selectExecutionPlan(options, probeCapabilities());
   const loaded = await createModelManager({ cache: defaultCache, ...(writeCache === undefined ? {} : { writeCache }), onProgress: (event) => reporter.emit(role, event), onSource: (source) => reporter.markSource(role, source) }).load({ modelId: resolved.manifest.modelId, version: resolved.manifest.version, variant: resolved.asset.id, bytes: resolved.asset.bytes, sha256: resolved.asset.sha256, url: resolved.asset.url }, options.signal);
+  const sessionStarted = performance.now();
   let executor: InferenceExecutor | undefined;
   let actualBackend = plan.candidates[0]!;
   let lastError: unknown;
@@ -100,6 +102,7 @@ async function prepare(options: RuntimeOptions, role: "det" | "rec", reporter: P
     runtime: { requestedBackend: plan.requestedBackend, actualBackend, execution: plan.execution, runtimeVersion: "onnxruntime-web@1.27.0" },
     loaded,
     executor,
+    sessionMs: performance.now() - sessionStarted,
     ...(resolved.manifestUrl === undefined ? {} : { manifestUrl: resolved.manifestUrl }),
   };
 }
@@ -121,7 +124,7 @@ export function createPublicDetector(options: RuntimeOptions = {}, progressRepor
       try {
         if (disposed) throw new PPOCRv6Error("DISPOSED", "Detector is disposed");
         checkAborted(controller.signal);
-        const engine = createDetectorEngine({ asset: prepared.asset, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
+        const engine = createDetectorEngine({ asset: prepared.asset, model: prepared.model, runtime: prepared.runtime, initialization: { ...prepared.loaded.timings, sessionMs: prepared.sessionMs, source: prepared.loaded.source }, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
         await engine.load();
         if (disposed) throw new PPOCRv6Error("DISPOSED", "Detector is disposed");
         checkAborted(controller.signal);
@@ -134,7 +137,14 @@ export function createPublicDetector(options: RuntimeOptions = {}, progressRepor
     }).finally(() => options.signal?.removeEventListener("abort", abort));
     return setup;
   };
-  return { kind: "detector", async load() { await ready(); }, async detect(input, runOptions) { return (await ready()).detect(input, runOptions); }, dispose() {
+  return { kind: "detector", get initialization() { return delegate?.initialization; }, async load() { await ready(); }, async detect(input, runOptions) {
+    const started = performance.now();
+    const cold = !delegate;
+    const ownsInitialization = !setup;
+    const engine = await ready();
+    const result = await engine.detect(input, runOptions);
+    return { ...result, timings: { ...result.timings, ...currentLoadTimings(engine.initialization, ownsInitialization), loadState: cold ? "cold" : "warm", totalMs: performance.now() - started } };
+  }, dispose() {
     if (disposal) return disposal;
     disposed = true;
     controller.abort();
@@ -168,7 +178,7 @@ export function createPublicRecognizer(options: RuntimeOptions = {}, progressRep
         const dictionary = await loadDictionary(prepared.asset, prepared.manifestUrl, controller.signal);
         if (disposed) throw new PPOCRv6Error("DISPOSED", "Recognizer is disposed");
         checkAborted(controller.signal);
-        const engine = createRecognizerEngine({ asset: prepared.asset, dictionary, model: prepared.model, runtime: prepared.runtime, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
+        const engine = createRecognizerEngine({ asset: prepared.asset, dictionary, model: prepared.model, runtime: prepared.runtime, initialization: { ...prepared.loaded.timings, sessionMs: prepared.sessionMs, source: prepared.loaded.source }, loadModel: async () => ({ bytes: prepared.loaded.bytes, timings: prepared.loaded.timings }), createExecutor: async () => prepared.executor });
         await engine.load();
         if (disposed) throw new PPOCRv6Error("DISPOSED", "Recognizer is disposed");
         checkAborted(controller.signal);
@@ -181,7 +191,14 @@ export function createPublicRecognizer(options: RuntimeOptions = {}, progressRep
     }).finally(() => options.signal?.removeEventListener("abort", abort));
     return setup;
   };
-  return { kind: "recognizer", async load() { await ready(); }, async recognize(input, runOptions) { return (await ready()).recognize(input, runOptions); }, dispose() {
+  return { kind: "recognizer", get initialization() { return delegate?.initialization; }, async load() { await ready(); }, async recognize(input, runOptions) {
+    const started = performance.now();
+    const cold = !delegate;
+    const ownsInitialization = !setup;
+    const engine = await ready();
+    const result = await engine.recognize(input, runOptions);
+    return { ...result, timings: { ...result.timings, ...currentLoadTimings(engine.initialization, ownsInitialization), loadState: cold ? "cold" : "warm", totalMs: performance.now() - started } };
+  }, dispose() {
     if (disposal) return disposal;
     disposed = true;
     controller.abort();

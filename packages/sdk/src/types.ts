@@ -18,15 +18,26 @@ export type ModelSource = ModelSelection;
 export type WasmPaths = string | { readonly mjs?: string; readonly wasm?: string };
 export interface RuntimeOptions { readonly backend?: Backend; readonly execution?: ExecutionMode; readonly allowFallback?: boolean; readonly wasmPaths?: WasmPaths; readonly model?: ModelSelection; readonly signal?: AbortSignal; readonly onProgress?: (event: OCRProgress) => void; }
 export interface RunOptions { readonly signal?: AbortSignal; }
-export interface Detector { readonly kind: "detector"; load(): Promise<void>; detect(input: unknown, options?: RunOptions): Promise<DetectionResult>; dispose(): Promise<void>; }
-export interface Recognizer { readonly kind: "recognizer"; load(): Promise<void>; recognize(input: unknown, options?: RunOptions): Promise<RecognitionResult>; dispose(): Promise<void>; }
-export interface OCRPipeline { readonly kind: "ocr"; load(): Promise<void>; ocr(input: unknown, options?: RunOptions): Promise<OCRResult>; recognize(input: unknown, options?: RunOptions): Promise<OCRResult>; dispose(): Promise<void>; }
+export interface Detector { readonly initialization?: InitializationTiming | undefined; readonly kind: "detector"; load(): Promise<void>; detect(input: unknown, options?: RunOptions): Promise<DetectionResult>; dispose(): Promise<void>; }
+export interface Recognizer { readonly initialization?: InitializationTiming | undefined; readonly kind: "recognizer"; load(): Promise<void>; recognize(input: unknown, options?: RunOptions): Promise<RecognitionResult>; dispose(): Promise<void>; }
+export interface OCRPipeline { readonly initialization?: InitializationTiming | undefined; readonly kind: "ocr"; load(): Promise<void>; ocr(input: unknown, options?: RunOptions): Promise<OCRResult>; recognize(input: unknown, options?: RunOptions): Promise<OCRResult>; dispose(): Promise<void>; }
 export interface Point { readonly x: number; readonly y: number; }
 export interface Detection { readonly index: number; readonly polygon: readonly Point[]; readonly score: number; }
 export interface ImageInfo { readonly width: number; readonly height: number; readonly source?: "image" | "canvas" | "bitmap" | "video"; }
 export interface ModelInfo { readonly id: string; readonly version: string; readonly preset?: ModelPreset; readonly manifestUrl?: string; readonly component?: string; readonly bytes?: number; readonly parameterCount?: number; }
-export interface RuntimeInfo { readonly requestedBackend: Backend; readonly actualBackend: Exclude<Backend, "auto">; readonly execution: ExecutionMode; readonly runtimeVersion: string; }
+export interface RuntimeInfo { readonly requestedBackend: Backend; readonly actualBackend: Exclude<Backend, "auto">; readonly execution: ExecutionMode; readonly runtimeVersion: string; readonly componentBackends?: { readonly det: Exclude<Backend, "auto">; readonly rec?: Exclude<Backend, "auto"> }; }
+/** 首次初始化的历史分项，不属于热运行 totalMs；源码新增，尚未发布到 npm。 */
+export interface InitializationTiming {
+  readonly modelDownloadMs: number;
+  readonly modelCacheReadMs: number;
+  readonly integrityMs: number;
+  readonly sessionMs: number;
+  readonly source?: "network" | "cache" | "mixed";
+}
 export interface TimingBreakdown {
+  /** 当前调用是否等待初始化；显式 load() 完成后的第一轮也是 warm。 */
+  readonly loadState?: "cold" | "warm";
+  readonly initialization?: InitializationTiming;
   readonly modelDownloadMs: number;
   readonly modelCacheReadMs: number;
   readonly integrityMs: number;
