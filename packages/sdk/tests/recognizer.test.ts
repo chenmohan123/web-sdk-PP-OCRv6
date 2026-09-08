@@ -17,6 +17,8 @@ describe("recognizer lifecycle", () => {
     expect(result.recognitions).toMatchObject([{ index: 9, text: "你" }]);
     expect(result.recognitions[0]!.score).toBeCloseTo(0.9, 6);
     expect(result.timings).toMatchObject({ modelDownloadMs: 1, integrityMs: 2, sessionMs: 3 });
+    const warm = await recognizer.recognize({ width: 1, height: 1, data: new Uint8ClampedArray(4) });
+    expect(warm.timings).toMatchObject({ modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0, sessionMs: 0, loadState: "warm" });
     await recognizer.dispose();
     await recognizer.dispose();
     expect(dispose).toHaveBeenCalledOnce();

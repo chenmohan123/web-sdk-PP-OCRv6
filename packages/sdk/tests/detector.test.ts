@@ -22,7 +22,9 @@ describe("detector lifecycle", () => {
     const result = await detector.detect({ width: 1, height: 1, data: new Uint8ClampedArray([255, 255, 255, 255]) });
     expect(result.detections).toHaveLength(1);
     expect(result.image).toMatchObject({ width: 1, height: 1 });
-    expect(result.timings).toMatchObject({ modelDownloadMs: 1, modelCacheReadMs: 2, integrityMs: 3, sessionMs: 4 });
+    expect(result.timings).toMatchObject({ modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0, sessionMs: 0, loadState: "warm", initialization: { modelDownloadMs: 1, modelCacheReadMs: 2, integrityMs: 3, sessionMs: 4 } });
+    const warm = await detector.detect({ width: 1, height: 1, data: new Uint8ClampedArray(4) });
+    expect(warm.timings).toMatchObject({ modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0, sessionMs: 0, loadState: "warm" });
     await detector.dispose();
     expect(release).toHaveBeenCalledOnce();
     await expect(detector.detect({ width: 1, height: 1, data: new Uint8ClampedArray(4) })).rejects.toMatchObject({ code: "DISPOSED" });

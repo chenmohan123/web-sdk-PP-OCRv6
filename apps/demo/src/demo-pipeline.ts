@@ -28,7 +28,7 @@ export function createDemoPipeline(options: RuntimeOptions, mode: Mode): OCRPipe
     const decodeMs = performance.now() - decodeStarted;
     const result = await component.recognize(raster, runOptions);
     const polygon = [{ x: 0, y: 0 }, { x: result.image.width, y: 0 }, { x: result.image.width, y: result.image.height }, { x: 0, y: result.image.height }];
-    return { ...result, timings: { ...result.timings, decodeMs, totalMs: result.timings.totalMs + decodeMs }, detections: [], lines: result.recognitions.map((line) => ({ ...line, recognitionScore: line.score, polygon })), stageTimings: { detectionMs: 0, cropMs: 0, recognitionMs: result.timings.totalMs } };
+    return { ...result, timings: { ...result.timings, decodeMs: result.timings.decodeMs + decodeMs, totalMs: performance.now() - decodeStarted }, detections: [], lines: result.recognitions.map((line) => ({ ...line, recognitionScore: line.score, polygon })), stageTimings: { detectionMs: 0, cropMs: 0, recognitionMs: result.timings.totalMs } };
   };
-  return { kind: "ocr", load: () => component.load(), dispose: () => component.dispose(), ocr: run, recognize: run };
+  return { kind: "ocr", get initialization() { return component.initialization; }, load: () => component.load(), dispose: () => component.dispose(), ocr: run, recognize: run };
 }

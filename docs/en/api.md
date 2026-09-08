@@ -19,3 +19,5 @@ Use `clearModelCache(modelId?, version?)` for the current version and `clearAllM
 `RuntimeOptions.wasmPaths` 可配置 ONNX Runtime 资源目录（以 `/` 结尾的绝对 URL），也可使用 `{ mjs: "https://cdn.example/ort.mjs", wasm: "https://cdn.example/ort.wasm" }` 指定资源。对象的两个字段均可省略，键名必须为 `mjs` 或 `wasm`，不能使用运行时文件名作为键。配置同时传递到 Worker 和主线程。资源必须与 SDK 依赖的 ONNX Runtime 版本一致；Demo 在开发服务和生产包中提供同版本 `ort/` 资源。
 
 主线程推理取消后，当前调用立即返回 `ABORTED`；后续推理与 `dispose()` 会等待仍在执行的底层计算结束。初始化期间调用 `dispose()` 会取消模型和字典下载，并等待初始化结束后释放已创建的执行器。
+
+Optional `InitializationTiming`, instance `initialization`, `timings.initialization`, `timings.loadState`, and `runtime.componentBackends` are source additions, not published in npm 0.1.8. Initialization is historical; the first run after explicit `load()` completion is warm. Top-level OCR `actualBackend` identifies DET; mixed execution requires reading `componentBackends`. See [Performance](performance.md) for boundaries.

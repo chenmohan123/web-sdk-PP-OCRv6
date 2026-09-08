@@ -25,21 +25,30 @@ async function routeModels(page: Page, source: "modelscope" | "huggingface") {
 }
 
 for (const mode of ["文本检测", "文本识别"] as const) {
-  test(`${mode}只加载并执行对应的模型`, async ({ page }) => {
-    const urls = await routeModels(page, "modelscope");
-    const requests: string[] = [];
-    page.on("request", (request) => { if (request.url().endsWith(".onnx")) requests.push(request.url()); });
-    await page.goto("./");
-    await page.getByRole("button", { name: mode, exact: true }).click();
-    await page.getByRole("button", { name: "CPU", exact: true }).click();
-    await page.getByRole("button", { name: "使用示例", exact: true }).click();
-    await page.getByRole("button", { name: "开始识别", exact: true }).click();
-    await expect(page.getByTestId("status")).toContainText("识别完成", { timeout: 20000 });
-    expect(requests).toEqual([mode === "文本检测" ? urls.det : urls.rec]);
-    await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("1");
-    if (mode === "文本识别") await expect(page.getByTestId("ocr-results")).toContainText("A");
-    else await expect(page.getByTestId("ocr-results")).not.toContainText("识别置信度");
-  });
+  for (const execution of ["Worker", "主线程"] as const) {
+    test(`${mode} ${execution} 只加载并执行对应的模型`, async ({ page }) => {
+      const urls = await routeModels(page, "modelscope");
+      const requests: string[] = [];
+      page.on("request", (request) => { if (request.url().endsWith(".onnx")) requests.push(request.url()); });
+      await page.goto("./");
+      await page.getByRole("button", { name: mode, exact: true }).click();
+      await page.getByRole("button", { name: execution, exact: true }).click();
+      await page.getByRole("button", { name: "CPU", exact: true }).click();
+      await page.getByRole("button", { name: "使用示例", exact: true }).click();
+      await page.getByRole("button", { name: "开始识别", exact: true }).click();
+      await expect(page.getByTestId("status")).toContainText("识别完成", { timeout: 20000 });
+      expect(requests).toEqual([mode === "文本检测" ? urls.det : urls.rec]);
+      await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("1");
+      if (mode === "文本识别") await expect(page.getByTestId("ocr-results")).toContainText("A");
+      else await expect(page.getByTestId("ocr-results")).not.toContainText("识别置信度");
+      await expect(page.locator("[data-sdk-run-state]")).toHaveText("冷启动（新会话）");
+      await page.getByRole("button", { name: "开始识别", exact: true }).click();
+      await expect(page.getByTestId("status")).toContainText("识别完成");
+      await expect(page.locator("[data-sdk-run-state]")).toHaveText("热运行（复用会话）");
+      await expect(page.locator("[data-sdk-load-wall]")).toHaveText("0.0 ms");
+      expect(requests).toEqual([mode === "文本检测" ? urls.det : urls.rec]);
+    });
+  }
 }
 
 for (const source of ["modelscope", "huggingface"] as const) {
@@ -58,6 +67,17 @@ for (const source of ["modelscope", "huggingface"] as const) {
       await expect(page.getByTestId("ocr-results").locator(".result-heading span")).toHaveText("1");
       await expect(page.getByTestId("ocr-results")).toContainText("A");
       await expect(page.getByTestId("status").locator(".error-text")).toHaveCount(0);
+      await expect(page.locator("[data-sdk-run-state]")).toHaveText("冷启动（新会话）");
+      expect(Number.parseFloat(await page.locator("[data-sdk-load-wall]").innerText())).toBeGreaterThan(0);
+      await expect(page.locator("[data-sdk-run-phases]")).toContainText("图像解码");
+      await expect(page.locator("[data-sdk-initialization]")).toContainText("首次初始化分项");
+      await page.getByRole("button", { name: "开始识别", exact: true }).click();
+      await expect(page.getByTestId("status")).toContainText("识别完成", { timeout: 20000 });
+      await expect(page.locator("[data-sdk-run-state]")).toHaveText("热运行（复用会话）");
+      await expect(page.locator("[data-sdk-load-wall]")).toHaveText("0.0 ms");
+      for (const name of ["模型下载", "模型加载", "缓存读取", "完整性校验"]) {
+        await expect(page.locator("[data-sdk-run-phases] > div").filter({ has: page.locator("dt", { hasText: name }) }).locator("dd")).toHaveText("0.0 ms");
+      }
       expect(responses.length).toBeGreaterThan(0);
       for (const response of responses) {
         expect(response.status()).toBe(200);

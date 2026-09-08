@@ -19,3 +19,5 @@
 `RuntimeOptions.wasmPaths` 可配置 ONNX Runtime 资源目录（以 `/` 结尾的绝对 URL），也可使用 `{ mjs: "https://cdn.example/ort.mjs", wasm: "https://cdn.example/ort.wasm" }` 指定资源。对象的两个字段均可省略，键名必须为 `mjs` 或 `wasm`，不能使用运行时文件名作为键。配置同时传递到 Worker 和主线程。资源必须与 SDK 依赖的 ONNX Runtime 版本一致；Demo 在开发服务和生产包中提供同版本 `ort/` 资源。
 
 主线程推理取消后，当前调用立即返回 `ABORTED`；后续推理与 `dispose()` 会等待仍在执行的底层计算结束。初始化期间调用 `dispose()` 会取消模型和字典下载，并等待初始化结束后释放已创建的执行器。
+
+源码新增的可选 `InitializationTiming`、实例 `initialization`、`timings.initialization`、`timings.loadState` 和 `runtime.componentBackends` 尚未发布到 npm 0.1.8。初始化记录为历史分项；显式 `load()` 完成后的首次运行已属于热运行。OCR 顶层 `actualBackend` 为 DET 实际后端，混合后端必须读取 `componentBackends`。完整语义见 [性能](performance.md)。

@@ -13,10 +13,10 @@ export function createOCRSessionManager(factory: OCRFactory) {
   };
 
   return {
-    ensure(key: string, options: RuntimeOptions, mode: "ocr" | "detection" | "recognition" = "ocr"): Promise<{ ocr: OCRPipeline; reused: boolean }> {
+    ensure(key: string, options: RuntimeOptions, mode: "ocr" | "detection" | "recognition" = "ocr"): Promise<{ ocr: OCRPipeline; reused: boolean; loadMs: number }> {
       const started = generation;
       return enqueue(async () => {
-      if (current?.key === key) return { ocr: current.ocr, reused: true };
+      if (current?.key === key) return { ocr: current.ocr, reused: true, loadMs: 0 };
 
       if (current) {
         const previous = current;
@@ -25,6 +25,7 @@ export function createOCRSessionManager(factory: OCRFactory) {
       }
 
       const ocr = factory(options, mode);
+      const loadStarted = performance.now();
       try {
         await ocr.load();
         if (generation !== started) throw new DOMException("会话初始化已取消", "AbortError");
@@ -33,7 +34,7 @@ export function createOCRSessionManager(factory: OCRFactory) {
         throw error;
       }
       current = { key, ocr };
-      return { ocr, reused: false };
+      return { ocr, reused: false, loadMs: performance.now() - loadStarted };
       });
     },
 

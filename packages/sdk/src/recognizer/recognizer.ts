@@ -1,8 +1,9 @@
 import type { RasterImage } from "../detector/decode";
 import type { InferenceTensor } from "../detector/detector";
+import { currentLoadTimings } from "../timing";
 import { PPOCRv6Error } from "../errors";
 import type { RuntimeManifestAsset } from "../model/manifest";
-import type { ModelInfo, Recognizer, RecognitionResult, RuntimeInfo, TimingBreakdown } from "../types";
+import type { InitializationTiming, ModelInfo, Recognizer, RecognitionResult, RuntimeInfo, TimingBreakdown } from "../types";
 import type { IndexedCrop } from "./crop";
 import { decodeCTC, decodeNRTR } from "./decode";
 import { preprocessRecognition } from "./preprocess";
@@ -17,6 +18,7 @@ export interface RecognizerEngineOptions {
   readonly dictionary: readonly string[];
   readonly model: ModelInfo;
   readonly runtime: RuntimeInfo;
+  readonly initialization?: InitializationTiming;
   readonly loadModel: () => Promise<{ readonly bytes: Uint8Array; readonly timings: Pick<TimingBreakdown, "modelDownloadMs" | "modelCacheReadMs" | "integrityMs"> }>;
   readonly createExecutor: (bytes: Uint8Array) => Promise<RecognizerExecutor>;
 }
@@ -31,6 +33,7 @@ export function createRecognizerEngine(options: RecognizerEngineOptions): Recogn
   let executor: RecognizerExecutor | undefined;
   let loadPromise: Promise<void> | undefined;
   let loadTimings = { modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0 };
+  let initialization: InitializationTiming | undefined;
   let disposed = false;
   let queue = Promise.resolve();
   const load = (): Promise<void> => {
@@ -41,6 +44,7 @@ export function createRecognizerEngine(options: RecognizerEngineOptions): Recogn
       if (disposed) throw new PPOCRv6Error("DISPOSED", "Recognizer is disposed");
       loadTimings = loaded.timings;
       executor = await options.createExecutor(loaded.bytes);
+      initialization = options.initialization ?? { ...loadTimings, sessionMs: executor.sessionMs };
     })().catch((error) => { loadPromise = undefined; throw error; });
     return loadPromise;
   };
@@ -50,6 +54,8 @@ export function createRecognizerEngine(options: RecognizerEngineOptions): Recogn
     const crops: readonly IndexedCrop[] = isRaster(input) ? [{ index: 0, image: input }] : Array.isArray(input) && input.every(isCrop) ? input : [];
     if (crops.length === 0) throw new PPOCRv6Error("INVALID_INPUT", "Recognition requires an image or a non-empty crop batch");
     const totalStarted = performance.now();
+    const cold = !executor;
+    const ownsInitialization = !loadPromise;
     await load();
     const resize = typeof options.asset.preprocessing.resize === "object" && options.asset.preprocessing.resize !== null ? options.asset.preprocessing.resize as Record<string, unknown> : {};
     const normalize = typeof options.asset.preprocessing.normalize === "object" && options.asset.preprocessing.normalize !== null ? options.asset.preprocessing.normalize as Record<string, unknown> : {};
@@ -85,11 +91,12 @@ export function createRecognizerEngine(options: RecognizerEngineOptions): Recogn
       image: { width: source.width, height: source.height, source: source.source },
       model: options.model,
       runtime: options.runtime,
-      timings: { ...loadTimings, sessionMs: executor!.sessionMs, decodeMs: 0, preprocessMs, inferenceMs, postprocessMs, totalMs: performance.now() - totalStarted },
+      timings: { ...currentLoadTimings(initialization, ownsInitialization), loadState: cold ? "cold" : "warm", ...(initialization === undefined ? {} : { initialization }), decodeMs: 0, preprocessMs, inferenceMs, postprocessMs, totalMs: performance.now() - totalStarted },
     };
   };
   return {
     kind: "recognizer",
+    get initialization() { return initialization; },
     load,
     recognize(input, runOptions) {
       const result = queue.then(() => run(input, runOptions?.signal));

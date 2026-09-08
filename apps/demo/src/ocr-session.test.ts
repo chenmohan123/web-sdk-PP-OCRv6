@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { createOCRSessionManager } from "./ocr-session";
 
 describe("OCR session manager", () => {
+  it("初始化以实际墙钟计时，复用会话的加载等待为零", async () => {
+    let now = 10;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    const manager = createOCRSessionManager((() => ({ load: async () => { now = 60; }, dispose: async () => {} })) as never);
+    try {
+      expect(await manager.ensure("same", {})).toMatchObject({ reused: false, loadMs: 50 });
+      now = 100;
+      expect(await manager.ensure("same", {})).toMatchObject({ reused: true, loadMs: 0 });
+    } finally { clock.mockRestore(); }
+  });
+
   it("旧会话释放失败后不会复用失效实例", async () => {
     const first = { load: async () => {}, dispose: async () => { throw new Error("释放失败"); } };
     const second = { load: async () => {}, dispose: async () => {} };

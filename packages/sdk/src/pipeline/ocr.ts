@@ -1,3 +1,4 @@
+import { sumInitialization } from "../timing";
 import { decodeImage } from "../detector/decode";
 import { sortDetectionsReadingOrder } from "../detector/reading-order";
 import { PPOCRv6Error } from "../errors";
@@ -15,6 +16,8 @@ const sumTimings = (left: TimingBreakdown, right: TimingBreakdown, totalMs: numb
   inferenceMs: left.inferenceMs + right.inferenceMs,
   postprocessMs: left.postprocessMs + right.postprocessMs,
   totalMs,
+  ...(left.loadState === "cold" || right.loadState === "cold" ? { loadState: "cold" as const }
+    : left.loadState === "warm" && right.loadState === "warm" ? { loadState: "warm" as const } : {}),
 });
 
 export function createOCRPipeline(components: OCRPipelineComponents): OCRPipeline {
@@ -29,6 +32,7 @@ export function createOCRPipeline(components: OCRPipelineComponents): OCRPipelin
     if (options.signal?.aborted) throw new PPOCRv6Error("ABORTED", "OCR pipeline aborted");
     const started = performance.now();
     const raster = await (components.decode ?? decodeImage)(input);
+    const pipelineDecodeMs = performance.now() - started;
     const detectionStarted = performance.now();
     const detected = await components.detector.detect(raster, options);
     const detectionMs = performance.now() - detectionStarted;
@@ -39,9 +43,9 @@ export function createOCRPipeline(components: OCRPipelineComponents): OCRPipelin
     if (options.signal?.aborted) throw new PPOCRv6Error("ABORTED", "OCR pipeline aborted");
     const recognitionStarted = performance.now();
     const recognized = crops.length === 0
-      ? { recognitions: [], timings: { ...detected.timings, modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0, sessionMs: 0, totalMs: 0 } }
+      ? { recognitions: [], runtime: undefined, timings: { loadState: "warm", modelDownloadMs: 0, modelCacheReadMs: 0, integrityMs: 0, sessionMs: 0, decodeMs: 0, preprocessMs: 0, inferenceMs: 0, postprocessMs: 0, totalMs: 0 } as TimingBreakdown }
       : await components.recognizer.recognize(crops, options);
-    const recognitionMs = performance.now() - recognitionStarted;
+    const recognitionMs = crops.length === 0 ? 0 : performance.now() - recognitionStarted;
     const byIndex = new Map(recognized.recognitions.map((item) => [item.index, item]));
     const lines = ordered.map((detection) => {
       const recognition = byIndex.get(detection.index);
@@ -49,13 +53,14 @@ export function createOCRPipeline(components: OCRPipelineComponents): OCRPipelin
       return { ...detection, text: recognition.text, recognitionScore: recognition.score };
     });
     const totalMs = performance.now() - started;
+    const initialization = sumInitialization(components.detector.initialization ?? detected.timings.initialization, components.recognizer.initialization ?? recognized.timings.initialization);
     return {
       lines,
       detections: detected.detections,
       image: { width: raster.width, height: raster.height, source: raster.source },
       model: components.model,
-      runtime: components.runtime,
-      timings: sumTimings(detected.timings, recognized.timings, totalMs),
+      runtime: { ...detected.runtime, componentBackends: { det: detected.runtime.actualBackend, ...(recognized.runtime === undefined ? {} : { rec: recognized.runtime.actualBackend }) } },
+      timings: { ...sumTimings(detected.timings, recognized.timings, totalMs), decodeMs: pipelineDecodeMs + detected.timings.decodeMs + recognized.timings.decodeMs, ...(initialization === undefined ? {} : { initialization }) },
       stageTimings: { detectionMs, cropMs, recognitionMs },
     };
   };
@@ -66,6 +71,7 @@ export function createOCRPipeline(components: OCRPipelineComponents): OCRPipelin
   };
   return {
     kind: "ocr",
+    get initialization() { return sumInitialization(components.detector.initialization, components.recognizer.initialization); },
     load,
     ocr,
     recognize: ocr,
