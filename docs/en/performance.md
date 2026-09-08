@@ -4,7 +4,7 @@ Older custom components may omit `loadState`. Aggregation reports `cold` when an
 
 [中文](../zh-CN/performance.md)
 
-The timing fixes and optional fields below belong to the current repository source and are not published in npm 0.1.8. Standalone integration examples remain pinned to public 0.1.8.
+The timing fixes and optional fields below are available from 0.2.0.
 
 Results retain nine millisecond fields: `modelDownloadMs`, `modelCacheReadMs`, `integrityMs`, `sessionMs`, `decodeMs`, `preprocessMs`, `inferenceMs`, `postprocessMs`, and `totalMs`. They describe the current call. Public detector/recognizer `totalMs` spans method entry through completion, including initialization and instance queue waits. OCR pipeline `totalMs` starts when its own queued work begins.
 

@@ -36,7 +36,11 @@ async function fetchManifest(url: string, signal?: AbortSignal, onProgress?: (ev
     safeEmitProgress(onProgress, { phase: "manifest", progress: 1 });
     return manifest;
   }
-  catch (error) { if (error instanceof PPOCRv6Error) throw error; throw new PPOCRv6Error("INVALID_MANIFEST", error instanceof Error ? error.message : String(error)); }
+  catch (error) {
+    if (signal?.aborted) throw new PPOCRv6Error("ABORTED", "清单读取已取消");
+    if (error instanceof PPOCRv6Error) throw error;
+    throw new PPOCRv6Error("INVALID_MANIFEST", error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function resolveManifest(selection: ModelVariant | undefined, signal?: AbortSignal, onProgress?: RuntimeOptions["onProgress"]): Promise<{ manifest: RuntimeManifest; manifestUrl?: string; preset: ModelPreset }> {
@@ -68,7 +72,10 @@ async function loadDictionary(asset: RuntimeManifestAsset, manifestUrl: string |
   try { response = await fetch(url, signal === undefined ? {} : { signal }); }
   catch (error) { throw new PPOCRv6Error(signal?.aborted ? "ABORTED" : "MODEL_DOWNLOAD_FAILED", error instanceof Error ? error.message : String(error), { url }); }
   if (!response.ok) throw new PPOCRv6Error("MODEL_DOWNLOAD_FAILED", `Dictionary download failed with HTTP ${response.status}`, { url, status: response.status });
-  const lines = (await response.text()).replace(/\r/g, "").split("\n");
+  let source: string;
+  try { source = await response.text(); }
+  catch (error) { throw new PPOCRv6Error(signal?.aborted ? "ABORTED" : "MODEL_DOWNLOAD_FAILED", error instanceof Error ? error.message : String(error), { url }); }
+  const lines = source.replace(/\r/g, "").split("\n");
   if (lines.at(-1) === "") lines.pop();
   return validateRecognitionDictionary(asset, lines);
 }

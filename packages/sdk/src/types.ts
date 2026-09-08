@@ -26,7 +26,7 @@ export interface Detection { readonly index: number; readonly polygon: readonly 
 export interface ImageInfo { readonly width: number; readonly height: number; readonly source?: "image" | "canvas" | "bitmap" | "video"; }
 export interface ModelInfo { readonly id: string; readonly version: string; readonly preset?: ModelPreset; readonly manifestUrl?: string; readonly component?: string; readonly bytes?: number; readonly parameterCount?: number; }
 export interface RuntimeInfo { readonly requestedBackend: Backend; readonly actualBackend: Exclude<Backend, "auto">; readonly execution: ExecutionMode; readonly runtimeVersion: string; readonly componentBackends?: { readonly det: Exclude<Backend, "auto">; readonly rec?: Exclude<Backend, "auto"> }; }
-/** 首次初始化的历史分项，不属于热运行 totalMs；源码新增，尚未发布到 npm。 */
+/** 首次初始化的历史分项，不属于热运行 totalMs；自 0.2.0 起提供。 */
 export interface InitializationTiming {
   readonly modelDownloadMs: number;
   readonly modelCacheReadMs: number;

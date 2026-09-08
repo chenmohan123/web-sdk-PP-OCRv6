@@ -1,0 +1,71 @@
+[
+  {
+    "id": "web-sdk-pp-ocrv6@0.2.0",
+    "name": "web-sdk-pp-ocrv6",
+    "version": "0.2.0",
+    "size": 172620,
+    "unpackedSize": 503787,
+    "shasum": "531815831e921be878881555542956b11f6fcab6",
+    "integrity": "sha512-YZMOv0i8jsHMznlMiAK7EPe1iD4Jg3wuu+0R4GHT6Koc25+CebB61O8/wZn07s7/vxyEjei0a2VcXKOG5cLHoA==",
+    "filename": "web-sdk-pp-ocrv6-0.2.0.tgz",
+    "files": [
+      {
+        "path": "README.md",
+        "size": 6114,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.d.ts",
+        "size": 16193,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js",
+        "size": 73480,
+        "mode": 420
+      },
+      {
+        "path": "dist/index.js.map",
+        "size": 150640,
+        "mode": 420
+      },
+      {
+        "path": "dist/inference.worker.js",
+        "size": 8438,
+        "mode": 420
+      },
+      {
+        "path": "dist/inference.worker.js.map",
+        "size": 17752,
+        "mode": 420
+      },
+      {
+        "path": "dist/models/dictionaries/PP-OCRv6_medium_rec.txt",
+        "size": 93658,
+        "mode": 420
+      },
+      {
+        "path": "dist/models/dictionaries/PP-OCRv6_small_rec.txt",
+        "size": 93658,
+        "mode": 420
+      },
+      {
+        "path": "dist/models/dictionaries/PP-OCRv6_tiny_rec.txt",
+        "size": 34063,
+        "mode": 420
+      },
+      {
+        "path": "dist/models/manifest.json",
+        "size": 8844,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 947,
+        "mode": 420
+      }
+    ],
+    "entryCount": 11,
+    "bundled": []
+  }
+]

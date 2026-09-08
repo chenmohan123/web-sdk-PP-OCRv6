@@ -41,7 +41,10 @@ export async function downloadModel(request: ModelDownloadRequest, options: { fe
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
     }
   }
-  catch (error) { throw new PPOCRv6Error("MODEL_DOWNLOAD_FAILED", error instanceof Error ? error.message : String(error)); }
+  catch (error) {
+    if (options.signal?.aborted) throw new PPOCRv6Error("ABORTED", "模型下载已取消");
+    throw new PPOCRv6Error("MODEL_DOWNLOAD_FAILED", error instanceof Error ? error.message : String(error));
+  }
   const downloadMs = performance.now() - started;
   const integrityStarted = performance.now();
   safeEmitProgress(options.onProgress, { phase: "integrity", progress: 0 });
