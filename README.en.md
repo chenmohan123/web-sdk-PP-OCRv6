@@ -4,6 +4,8 @@
 
 A framework-neutral browser SDK for PP-OCRv6 text detection, recognition, and the complete `det -> crop -> rec` OCR pipeline through ONNX Runtime Web. It targets desktop/mobile browsers, WeChat Official Account H5, and mini-program `web-view`. The native WeChat mini-program JavaScript/WASM runtime is not supported.
 
+This document describes `web-sdk-pp-ocrv6@0.2.0`. Check [npm](https://www.npmjs.com/package/web-sdk-pp-ocrv6) for publicly available versions and publication status.
+
 ## Install
 
 ```bash
@@ -36,6 +38,14 @@ do not interrupt the SDK. A full OCR pipeline combines detector and recognizer
 network downloads using manifest byte weights.
 
 `wasm` means CPU and `webgpu` means GPU. Explicit selections are strict. Fallback from WebGPU to WASM is permitted only with `backend: "auto"` and `allowFallback: true`.
+
+## New in 0.2.0
+
+- `RuntimeOptions.wasmPaths` configures matching ORT resources in Workers and on the main thread; custom models support explicit `preset` selection.
+- `getModelCacheUsage`, `resolveModelCacheIdentity`, and optional `CacheWriter/createWriter` expose cache bytes, model identity, and cleanup invalidation for in-flight writes.
+- `initialization`, `timings.loadState`, and `runtime.componentBackends` report historical initialization, current cold/warm state, and actual component backends.
+
+See [API](docs/en/api.md) and [Performance](docs/en/performance.md) for configuration and cancellation/disposal boundaries. Standalone examples are pinned to 0.1.8; each example README documents its API scope and limitations.
 
 ## Model distribution
 

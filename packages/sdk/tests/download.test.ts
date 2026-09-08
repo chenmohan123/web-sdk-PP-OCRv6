@@ -5,6 +5,27 @@ import type { OCRProgress } from "../src/types";
 const request = { url: "https://cdn.test/model.onnx", bytes: 4, sha256: "a".repeat(64) };
 
 describe("model download progress", () => {
+  it("读取响应流时取消保留 ABORTED 错误码", async () => {
+    const abort = new AbortController();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        abort.signal.addEventListener("abort", () => controller.error(new DOMException("读取已取消", "AbortError")), { once: true });
+      },
+    });
+    await expect(downloadModel(request, {
+      signal: abort.signal,
+      fetchImpl: vi.fn().mockResolvedValue(new Response(body)),
+      onProgress: (event) => { if (event.phase === "download") abort.abort(); },
+    })).rejects.toMatchObject({ code: "ABORTED" });
+  });
+
+  it("未取消的响应流错误仍报告 MODEL_DOWNLOAD_FAILED", async () => {
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.error(new Error("连接中断")); } });
+    await expect(downloadModel(request, {
+      fetchImpl: vi.fn().mockResolvedValue(new Response(body)),
+    })).rejects.toMatchObject({ code: "MODEL_DOWNLOAD_FAILED" });
+  });
+
   it("reports byte progress while reading a response stream", async () => {
     const progress: unknown[] = [];
     const body = new ReadableStream<Uint8Array>({

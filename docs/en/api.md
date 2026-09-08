@@ -10,14 +10,16 @@
 
 Use `clearModelCache(modelId?, version?)` for the current version and `clearAllModelCache()` for all model entries.
 
-以下能力属于当前仓库源码，尚未发布到 npm 0.1.8；独立示例仅使用已发布版本的 API。
+The cache, resource configuration, and initialization observability APIs below are available from 0.2.0.
 
-`getModelCacheUsage(modelId?, version?)` 返回 `{ usage }`，统计本 SDK 实际存储的模型二进制字节；省略参数统计全部，传入模型身份统计当前模型。它不代表整个同源网站的用量或配额。`resolveModelCacheIdentity(selection?, signal?)` 解析模型清单的 `modelId` 和 `version`，不下载模型或创建推理会话。
+`getModelCacheUsage(modelId?, version?)` returns `{ usage }`: model binary bytes actually stored by this SDK. Omit both arguments for all models or provide the model identity to restrict the result. It does not report the entire origin's storage usage or quota. `resolveModelCacheIdentity(selection?, signal?)` resolves the manifest's `modelId` and `version` without downloading models or creating inference sessions.
 
-内置缓存清理会阻止同一 JavaScript 模块环境中清理前启动的下载回填；第三方缓存可通过可选的 `createWriter()` 接入同样的失效控制。SDK 清理只处理存储，Demo 还会取消、等待并释放当前会话。不同标签页之间尚无清理广播协议。
+Built-in cache cleanup prevents downloads started before cleanup in the same JavaScript module environment from writing back. Third-party caches can implement optional `createWriter()` with `CacheWriter` for equivalent invalidation. SDK cleanup only handles storage; the Demo also cancels, waits for, and disposes the current session. Cross-tab invalidation broadcasts are not implemented.
 
-`RuntimeOptions.wasmPaths` 可配置 ONNX Runtime 资源目录（以 `/` 结尾的绝对 URL），也可使用 `{ mjs: "https://cdn.example/ort.mjs", wasm: "https://cdn.example/ort.wasm" }` 指定资源。对象的两个字段均可省略，键名必须为 `mjs` 或 `wasm`，不能使用运行时文件名作为键。配置同时传递到 Worker 和主线程。资源必须与 SDK 依赖的 ONNX Runtime 版本一致；Demo 在开发服务和生产包中提供同版本 `ort/` 资源。
+`RuntimeOptions.wasmPaths` accepts an absolute ONNX Runtime resource directory ending in `/`, or `{ mjs: "https://cdn.example/ort.mjs", wasm: "https://cdn.example/ort.wasm" }`. Both object fields are optional; valid keys are `mjs` and `wasm`, not runtime filenames. The option reaches both Worker and main-thread execution. Resources must match the SDK's ONNX Runtime dependency version. The Demo serves matching `ort/` resources during development and in production builds.
 
-主线程推理取消后，当前调用立即返回 `ABORTED`；后续推理与 `dispose()` 会等待仍在执行的底层计算结束。初始化期间调用 `dispose()` 会取消模型和字典下载，并等待初始化结束后释放已创建的执行器。
+Custom models accept `{ manifestUrl, preset: "tiny" }` or `{ manifest, preset: "tiny" }` to select a manifest preset; omitting it keeps the default preset.
 
-Optional `InitializationTiming`, instance `initialization`, `timings.initialization`, `timings.loadState`, and `runtime.componentBackends` are source additions, not published in npm 0.1.8. Initialization is historical; the first run after explicit `load()` completion is warm. Top-level OCR `actualBackend` identifies DET; mixed execution requires reading `componentBackends`. See [Performance](performance.md) for boundaries.
+Canceling main-thread inference rejects the current call with `ABORTED` immediately; subsequent inference and `dispose()` wait for ongoing underlying computation. Calling `dispose()` during initialization cancels model and dictionary downloads, waits for initialization to settle, and releases executors already created.
+
+0.2.0 adds optional `InitializationTiming`, instance `initialization`, `timings.initialization`, `timings.loadState`, and `runtime.componentBackends`. Initialization is historical; the first run after explicit `load()` completion is warm. Top-level OCR `actualBackend` identifies DET; mixed execution requires reading `componentBackends`. See [Performance](performance.md) for boundaries.

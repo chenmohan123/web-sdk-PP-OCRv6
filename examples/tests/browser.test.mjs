@@ -2,14 +2,17 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { cpus, release } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dirname, "../..");
 const require = createRequire(join(root, "apps/demo/package.json"));
 const { chromium } = require("playwright");
 const directory = resolve(process.argv[2]);
+const version = process.argv.includes("--cdn") ? "0.1.8" : JSON.parse(await readFile(join(directory, "vanilla/node_modules/web-sdk-pp-ocrv6/package.json"), "utf8")).version;
 const models = JSON.parse(await readFile(join(root, "apps/demo/tests/fixtures/runtime-models.json"), "utf8"));
 const browser = await chromium.launch({ headless: true });
+console.log(`验证环境：${new Date().toISOString()} / ${process.platform} ${release()} / ${cpus()[0]?.model} / Chromium ${browser.version()} / SDK ${version} / ORT 1.27.0`);
 let served = directory;
 const server = createServer(async (request, response) => {
   try {
@@ -30,7 +33,7 @@ try {
       page.on("pageerror", (error) => errors.push(error.message));
       const hostname = source === "modelscope" ? "modelscope.cn" : "huggingface.co";
       const manifest = { modelId: "consumer-regression", version: "1.0.0", assets: ["det", "rec"].map((role) => ({ id: role, role, preset: "tiny", bytes: models[role].bytes, sha256: models[role].sha256, url: `https://${hostname}/test/${role}.onnx`, input: { name: "x", dtype: "float32", shape: [1, 3, "H", "W"] }, output: { name: "output", dtype: "float32", shape: models[role].shape }, preprocessing: {}, postprocessing: {}, decoder: { characters: ["A"], blankIndex: 0 } })) };
-      // 仅替换模型传输，实际执行独立目录安装的 0.1.8、ORT 和 WASM。
+      // 仅替换模型传输，实际执行独立目录安装的 SDK、ORT 和 WASM。
       await page.route(`https://${hostname}/**/manifest.json*`, (route) => route.fulfill({ json: manifest }));
       for (const role of ["det", "rec"]) await page.route(`https://${hostname}/test/${role}.onnx`, (route) => route.fulfill({ body: Buffer.from(models[role].base64, "base64"), contentType: "application/octet-stream" }));
       await page.goto(`http://127.0.0.1:${server.address().port}/`);
@@ -44,7 +47,40 @@ try {
       assert.equal(await page.getByRole("button", { name: "开始识别" }).isEnabled(), true);
       assert.deepEqual(errors, []);
       await page.close();
-      console.log(`${name} / ${source}：公开 0.1.8 实际 WASM OCR 通过`);
+      console.log(`${name} / ${source}：${version} 实际 WASM OCR 通过`);
+      if (process.argv.includes("--candidate") && name === "vanilla" && source === "modelscope") {
+        for (const execution of ["main", "worker"]) {
+          const candidatePage = await browser.newPage();
+          const candidateErrors = [];
+          candidatePage.on("pageerror", (error) => candidateErrors.push(error.message));
+          const wasmResponses = [];
+          candidatePage.on("response", (response) => { if (new URL(response.url()).pathname.endsWith(".wasm")) wasmResponses.push(response.status()); });
+          for (const role of ["det", "rec"]) await candidatePage.route(`https://${hostname}/test/${role}.onnx`, (route) => route.fulfill({ body: Buffer.from(models[role].base64, "base64"), contentType: "application/octet-stream" }));
+          await candidatePage.goto(`http://127.0.0.1:${server.address().port}/candidate.html`);
+          await candidatePage.waitForFunction(() => typeof window.verifyCandidate === "function");
+          const outcome = await candidatePage.evaluate(({ execution, manifest }) => Promise.race([
+            window.verifyCandidate(execution, manifest),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("候选运行时验证超过 30 秒")), 30000)),
+          ]), { execution, manifest });
+          assert.equal(outcome.result.lines[0].text, "A");
+          assert.equal(outcome.result.runtime.execution, execution);
+          assert.deepEqual(outcome.result.runtime.componentBackends, { det: "wasm", rec: "wasm" });
+          assert.equal(outcome.result.timings.loadState, "warm");
+          for (const field of ["modelDownloadMs", "modelCacheReadMs", "integrityMs", "sessionMs"]) assert.equal(outcome.result.timings[field], 0);
+          assert.ok(outcome.result.timings.initialization);
+          assert.deepEqual(outcome.identity, { modelId: manifest.modelId, version: manifest.version });
+          assert.equal(outcome.usage.usage, models.det.bytes + models.rec.bytes);
+          assert.equal(outcome.aborted, "ABORTED");
+          assert.equal(outcome.disposed, "DISPOSED");
+          assert.ok(["ABORTED", "DISPOSED"].includes(outcome.canceledLoad), outcome.canceledLoad);
+          assert.equal(outcome.cleared.usage, 0);
+          assert.ok(wasmResponses.length > 0);
+          assert.ok(wasmResponses.every((status) => status === 200));
+          assert.deepEqual(candidateErrors, []);
+          await candidatePage.close();
+          console.log(`${version} / ${execution}：候选包缓存、计时、wasmPaths、取消与初始化释放通过`);
+        }
+      }
     }
   }
 } finally { await browser.close(); await new Promise((done) => server.close(done)); }

@@ -35,6 +35,43 @@ beforeEach(() => {
 afterEach(async () => { await clearEveryModelCache(); vi.unstubAllGlobals(); });
 
 describe("公开工厂的初始化资源生命周期", () => {
+  it("读取清单响应体时释放保留 ABORTED 错误码", async () => {
+    const started = deferred<void>();
+    vi.mocked(fetch).mockImplementation(async (_url, init) => {
+      const body = new ReadableStream<Uint8Array>({ start(controller) {
+        init?.signal?.addEventListener("abort", () => controller.error(new DOMException("读取已取消", "AbortError")), { once: true });
+      } });
+      started.resolve();
+      return new Response(body);
+    });
+    const detector = createPublicDetector({ backend: "wasm", execution: "main", model: { det: { manifestUrl: "https://models.test/manifest.json" } } });
+    const loading = detector.load().catch((error: unknown) => error);
+    await started.promise;
+    await detector.dispose();
+    expect(await loading).toMatchObject({ code: "ABORTED" });
+    expect(createInferenceExecutor).not.toHaveBeenCalled();
+  });
+
+  it("读取字典响应体时释放保留 ABORTED 并回收会话", async () => {
+    const started = deferred<void>();
+    const handle = executor();
+    vi.mocked(createInferenceExecutor).mockResolvedValue(handle);
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (!String(url).endsWith("dict.txt")) return new Response(modelBytes);
+      const body = new ReadableStream<Uint8Array>({ start(controller) {
+        init?.signal?.addEventListener("abort", () => controller.error(new DOMException("读取已取消", "AbortError")), { once: true });
+      } });
+      started.resolve();
+      return new Response(body);
+    });
+    const recognizer = createPublicRecognizer(options("https://models.test/dict.txt"));
+    const loading = recognizer.load().catch((error: unknown) => error);
+    await started.promise;
+    await recognizer.dispose();
+    expect(await loading).toMatchObject({ code: "ABORTED" });
+    expect(handle.dispose).toHaveBeenCalledOnce();
+  });
+
   it("自定义 manifest 尚在解析时清理，也禁止后续模型下载写回", async () => {
     const manifest = (options().model!.det as { manifest: ModelManifest }).manifest;
     const started = deferred<void>(); const response = deferred<Response>();

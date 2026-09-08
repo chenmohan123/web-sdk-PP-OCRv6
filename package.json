@@ -1,6 +1,6 @@
 {
   "name": "web-sdk-pp-ocrv6-workspace",
-  "version": "0.1.8",
+  "version": "0.2.0",
   "description": "Browser-first PP-OCRv6 OCR SDK powered by ONNX Runtime Web",
   "repository": {
     "type": "git",

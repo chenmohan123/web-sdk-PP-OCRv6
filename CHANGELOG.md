@@ -1,6 +1,13 @@
 # Changelog
 
-## 未发布
+## 0.2.0 - 2026-09-08
+
+本版本新增缓存管理、资源配置和初始化观测能力，完善取消与释放语义。完整说明见 [0.2.0 发布说明](reports/release/0.2.0.md)。
+
+- 新增 `getModelCacheUsage`、`resolveModelCacheIdentity` 和可选 `CacheWriter/createWriter`，支持按模型身份统计、清理及控制在途缓存写入。
+- 新增 `RuntimeOptions.wasmPaths`、自定义模型 `preset`、初始化历史分项、冷热状态和 `runtime.componentBackends`，均为向后兼容增量。
+- 修复模型加载、取消、释放竞态及默认 manifest URL，WASM 资源配置同时支持 Worker 与主线程。
+- 修复模型、清单和字典响应体读取期间取消被误报为下载失败、清单无效或原始浏览器异常的问题，统一返回 `ABORTED`，并回收已创建的会话。
 
 - 修复热运行重复累计加载、空检测重复推理和入口解码遗漏；当前调用与历史初始化分项分开，初始化等待采用实际墙钟。
 - OCR 按实际执行的 DET/REC 组件报告后端；旧自定义组件缺少可选冷热状态时保留未知。Demo 展示新会话、复用会话和本次端到端耗时。

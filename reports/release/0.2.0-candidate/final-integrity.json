@@ -1,0 +1,70 @@
+{
+  "verifiedAt": "2026-09-08T04:34:29.268Z",
+  "version": "0.2.0",
+  "tarball": "F:/git/00_chenmohan/github/web-sdk-PP-OCRv6/reports/release/0.2.0-candidate/final/web-sdk-pp-ocrv6-0.2.0.tgz",
+  "bytes": 172327,
+  "unpackedBytes": 503239,
+  "integrity": "sha512-9TVVgjGABgwmHUtBCixX7lzokIyPH8bcQMsepqR4cCfq978L4s3CEtMbpWgnt5OhqRYrvLTlz5nWhnubb0qMAA==",
+  "sha256": "2c1aebf8dafbbbba3d9ae5b42e55efebe74284672f182b08fabd2ce9c32f9f53",
+  "previousTarballDifferences": [
+    "README.md"
+  ],
+  "allPackageFilesMatchBuild": true,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 5566,
+      "sha256": "6d6af47d2b1536dd511b203e11a1248c8257802fa153135a7cae8f716f3db352"
+    },
+    {
+      "path": "dist/index.d.ts",
+      "bytes": 16193,
+      "sha256": "134010c99ed913fba1ec9fce8dc1218a826ac52a34aa725e1a482057e1e4b527"
+    },
+    {
+      "path": "dist/index.js",
+      "bytes": 73480,
+      "sha256": "53fe5651d5ea884786037e1b04ceda8f63b9f66ddc259d58c3568f74bce4c9bd"
+    },
+    {
+      "path": "dist/index.js.map",
+      "bytes": 150640,
+      "sha256": "f96deae87237560eadef854956b6f7bad114328ea73e3ac2e80eb23b31164e1a"
+    },
+    {
+      "path": "dist/inference.worker.js",
+      "bytes": 8438,
+      "sha256": "35826e6e6ddf45f073967e813107c77f0f630bbd8339917b1f2ad233e148bf19"
+    },
+    {
+      "path": "dist/inference.worker.js.map",
+      "bytes": 17752,
+      "sha256": "ba8f9feed54ba99a4e80870b7442dbec72f1d3c198a83054b9fb4148cd0da511"
+    },
+    {
+      "path": "dist/models/dictionaries/PP-OCRv6_medium_rec.txt",
+      "bytes": 93658,
+      "sha256": "f65bebb1b09b62b691094f0c83e73c2623c81eb477996707e783cdebe41ba519"
+    },
+    {
+      "path": "dist/models/dictionaries/PP-OCRv6_small_rec.txt",
+      "bytes": 93658,
+      "sha256": "f65bebb1b09b62b691094f0c83e73c2623c81eb477996707e783cdebe41ba519"
+    },
+    {
+      "path": "dist/models/dictionaries/PP-OCRv6_tiny_rec.txt",
+      "bytes": 34063,
+      "sha256": "65f694d6e8cd39efa1c5480bbfd2fe90e631a6b17bbb3190089f261eb5e6f043"
+    },
+    {
+      "path": "dist/models/manifest.json",
+      "bytes": 8844,
+      "sha256": "2542252edfc8972715eb9d7fe1ab3510583b2b91dd5b32803c82bebf8cb74918"
+    },
+    {
+      "path": "package.json",
+      "bytes": 947,
+      "sha256": "94c1b80c90d8288a04efb9ce6501a612e75b6e443a61c3d988f81f1b5a53df4c"
+    }
+  ]
+}
