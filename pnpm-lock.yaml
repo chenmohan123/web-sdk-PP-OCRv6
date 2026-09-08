@@ -77,8 +77,8 @@ importers:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
       web-sdk-pp-ocrv6:
-        specifier: 0.1.8
-        version: 0.1.8
+        specifier: 0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/node':
         specifier: 24.0.0
@@ -102,8 +102,8 @@ importers:
         specifier: 1.27.0
         version: 1.27.0
       web-sdk-pp-ocrv6:
-        specifier: 0.1.8
-        version: 0.1.8
+        specifier: 0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/node':
         specifier: 24.0.0
@@ -121,8 +121,8 @@ importers:
         specifier: 1.27.0
         version: 1.27.0
       web-sdk-pp-ocrv6:
-        specifier: 0.1.8
-        version: 0.1.8
+        specifier: 0.2.0
+        version: 0.2.0
     devDependencies:
       '@types/node':
         specifier: 24.0.0
@@ -1132,8 +1132,8 @@ packages:
       jsdom:
         optional: true
 
-  web-sdk-pp-ocrv6@0.1.8:
-    resolution: {integrity: sha512-MuTYCc4EmvmbhkSdhIUKi4VADEE1ZJAeiBgWjyszqCe9FaCRyoBkQth4V1ZkUJKueRg+Cg5Kyif5O85A5+8jsg==}
+  web-sdk-pp-ocrv6@0.2.0:
+    resolution: {integrity: sha512-UUzUyHXNg1yGpbgw/DjF3O0bQaRQG0pcDWoOyCM1C6W5q/C+MJYTuIPHkMyedTYvRfIdvJmu/EsN3LypLmcO8g==}
 
   why-is-node-running@2.3.0:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
@@ -2082,7 +2082,7 @@ snapshots:
       - tsx
       - yaml
 
-  web-sdk-pp-ocrv6@0.1.8:
+  web-sdk-pp-ocrv6@0.2.0:
     dependencies:
       onnxruntime-web: 1.27.0
 
