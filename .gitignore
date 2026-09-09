@@ -7,3 +7,8 @@ test-results/
 .turbo/
 *.tsbuildinfo
 .env*
+
+# 0.2.0 验收原始日志与打包文件仅在本地留存，文本报告继续纳入 Git。
+/reports/release/0.2.0-candidate/*.log
+/reports/release/0.2.0-candidate/web-sdk-pp-ocrv6-0.2.0.tgz
+/reports/release/0.2.0-candidate/final/web-sdk-pp-ocrv6-0.2.0.tgz
